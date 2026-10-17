@@ -1,4 +1,6 @@
 from datetime import datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -67,7 +69,9 @@ def test_health_requires_migration():
         assert response.json() == {"detail": "Database is not ready"}
 
 
-def test_suggestions_are_preview_only(client):
+def test_suggestions_are_preview_only(client, monkeypatch):
+    sleep = AsyncMock()
+    monkeypatch.setattr("demo_api.main.asyncio", SimpleNamespace(sleep=sleep))
     response = client.post("/ai/suggestions", json={"goal": "社内勉強会を準備したい"})
     assert response.status_code == 200
     assert response.json() == {
@@ -79,9 +83,13 @@ def test_suggestions_are_preview_only(client):
         "model_version": "mock-v1",
     }
     assert client.get("/todos").json() == []
+    sleep.assert_not_awaited()
     slow = client.post("/ai/suggestions", json={"goal": "準備", "scenario": "slow"})
     assert slow.json() == response.json()
+    sleep.assert_awaited_once_with(3.0)
+    sleep.reset_mock()
     error = client.post("/ai/suggestions", json={"goal": "準備", "scenario": "error"})
+    sleep.assert_awaited_once_with(3.0)
     assert error.status_code == 503
     assert error.json()["detail"]["code"] == "MOCK_UNAVAILABLE"
     assert client.post("/ai/suggestions", json={"goal": "  "}).status_code == 422

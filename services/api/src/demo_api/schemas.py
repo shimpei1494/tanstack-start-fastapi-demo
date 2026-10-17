@@ -14,6 +14,7 @@ from pydantic import (
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Goal = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
 Scenario = Literal["normal", "slow", "error", "disconnect", "before-error"]
+ReportScenario = Literal["normal", "slow", "error"]
 Identifier = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128)]
 
 
@@ -52,6 +53,19 @@ class TodoRead(BaseModel):
     def utc_dates(cls, value: datetime) -> datetime:
         # SQLite tests do not preserve timezone metadata; API always emits UTC.
         return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+class NextTodo(StrictModel):
+    id: str
+    title: str
+
+
+class SummaryReport(StrictModel):
+    total: int
+    completed: int
+    remaining: int
+    next_todos: list[NextTodo]
+    summary: str
 
 
 class SuggestionRequest(StrictModel):

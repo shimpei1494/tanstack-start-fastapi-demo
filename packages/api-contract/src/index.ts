@@ -31,3 +31,18 @@ export const suggestionsSchema = z.object({
   suggestions: z.array(z.object({ title: titleSchema })).max(10),
   model_version: z.string(),
 });
+
+export const reportScenarioSchema = z.enum(["normal", "slow", "error"]);
+export type ReportScenario = z.infer<typeof reportScenarioSchema>;
+export const summaryReportSchema = z
+  .object({
+    total: z.number().int().nonnegative(),
+    completed: z.number().int().nonnegative(),
+    remaining: z.number().int().nonnegative(),
+    next_todos: z.array(z.object({ id: z.uuid(), title: titleSchema })).max(3),
+    summary: z.string().min(1),
+  })
+  .refine(
+    (report) => report.total === report.completed + report.remaining,
+    "集計の件数が一致しません",
+  );

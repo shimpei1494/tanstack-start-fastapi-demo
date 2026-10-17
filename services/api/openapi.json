@@ -144,6 +144,25 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "NextTodo": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "NextTodo",
+        "type": "object"
+      },
       "Suggestion": {
         "additionalProperties": false,
         "properties": {
@@ -207,6 +226,43 @@
           "suggestions"
         ],
         "title": "SuggestionResponse",
+        "type": "object"
+      },
+      "SummaryReport": {
+        "additionalProperties": false,
+        "properties": {
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "next_todos": {
+            "items": {
+              "$ref": "#/components/schemas/NextTodo"
+            },
+            "title": "Next Todos",
+            "type": "array"
+          },
+          "remaining": {
+            "title": "Remaining",
+            "type": "integer"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "completed",
+          "remaining",
+          "next_todos",
+          "summary"
+        ],
+        "title": "SummaryReport",
         "type": "object"
       },
       "TodoCreate": {
@@ -436,6 +492,51 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/reports/summary": {
+      "get": {
+        "operationId": "getSummaryReport",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scenario",
+            "required": false,
+            "schema": {
+              "default": "slow",
+              "enum": [
+                "normal",
+                "slow",
+                "error"
+              ],
+              "title": "Scenario",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Summary Report"
       }
     },
     "/todos": {

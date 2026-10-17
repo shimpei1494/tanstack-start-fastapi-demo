@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Summary Report */
+        get: operations["getSummaryReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/todos": {
         parameters: {
             query?: never;
@@ -148,6 +165,13 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** NextTodo */
+        NextTodo: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+        };
         /** Suggestion */
         Suggestion: {
             /** Title */
@@ -174,6 +198,19 @@ export interface components {
             model_version: "mock-v1";
             /** Suggestions */
             suggestions: components["schemas"]["Suggestion"][];
+        };
+        /** SummaryReport */
+        SummaryReport: {
+            /** Completed */
+            completed: number;
+            /** Next Todos */
+            next_todos: components["schemas"]["NextTodo"][];
+            /** Remaining */
+            remaining: number;
+            /** Summary */
+            summary: string;
+            /** Total */
+            total: number;
         };
         /** TodoCreate */
         TodoCreate: {
@@ -312,6 +349,37 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    getSummaryReport: {
+        parameters: {
+            query?: {
+                scenario?: "normal" | "slow" | "error";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SummaryReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

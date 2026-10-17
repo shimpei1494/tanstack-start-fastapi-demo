@@ -7,7 +7,7 @@ from uuid import UUID
 from ag_ui.encoder import EventEncoder
 from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, text
+from sqlalchemy import case, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -16,8 +16,10 @@ from demo_api.db import Todo, database_url, get_session, make_engine, utc_now
 from demo_api.fixtures import SUGGESTIONS, UNAVAILABLE_MESSAGE
 from demo_api.schemas import (
     DemoRunAgentInput,
+    ReportScenario,
     SuggestionRequest,
     SuggestionResponse,
+    SummaryReport,
     TodoCreate,
     TodoRead,
     TodoUpdate,
@@ -97,11 +99,47 @@ def create_app(url: str | None = None) -> FastAPI:
 
     @app.post("/ai/suggestions", response_model=SuggestionResponse, operation_id="suggestTodos")
     async def suggestions(data: SuggestionRequest):
-        if data.scenario == "slow":
-            await asyncio.sleep(1.25)
+        if data.scenario in {"slow", "error"}:
+            await asyncio.sleep(3.0)
         if data.scenario == "error":
             raise unavailable()
         return {"suggestions": [{"title": title} for title in SUGGESTIONS]}
+
+    @app.get("/reports/summary", response_model=SummaryReport, operation_id="getSummaryReport")
+    async def summary_report(session: Database, scenario: ReportScenario = "slow"):
+        # Session creation is lazy: wait before querying so no DB connection is
+        # occupied while the simulated work is pending.
+        if scenario in {"slow", "error"}:
+            await asyncio.sleep(3.0)
+        if scenario == "error":
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "REPORT_UNAVAILABLE",
+                    "message": "作業レポートを作成できませんでした。もう一度お試しください。",
+                },
+            )
+        total, completed = session.execute(
+            select(func.count(Todo.id), func.count(case((Todo.completed.is_(True), 1))))
+        ).one()
+        remaining = total - completed
+        next_todos = session.execute(
+            select(Todo.id, Todo.title)
+            .where(Todo.completed.is_(False))
+            .order_by(Todo.created_at, Todo.id)
+            .limit(3)
+        ).mappings()
+        return {
+            "total": total,
+            "completed": completed,
+            "remaining": remaining,
+            "next_todos": list(next_todos),
+            "summary": (
+                f"TODOは全{total}件。完了{completed}件、未完了{remaining}件です。"
+                if total
+                else "TODOはまだありません。最初の作業を追加してみましょう。"
+            ),
+        }
 
     @app.post(
         "/chat/stream",
