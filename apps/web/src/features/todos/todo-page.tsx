@@ -24,7 +24,12 @@ export function TodoPage() {
   const { filter } = Route.useSearch();
   const { data: todos } = useSuspenseQuery(todoOptions(filter));
   const queryClient = useQueryClient();
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["todos"] });
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["todos"] }),
+      queryClient.invalidateQueries({ queryKey: ["reports", "summary"] }),
+    ]);
+  };
   const add = useMutation({
     mutationFn: (title: string) => createTodo({ data: { title } }),
     onSuccess: refresh,
@@ -329,7 +334,7 @@ function SuggestionPanel({ refresh }: { refresh: () => Promise<void> }) {
                 </label>
                 <textarea
                   id="goal"
-                  disabled={!hydrated}
+                  disabled={!hydrated || suggest.isPending}
                   rows={3}
                   className="field resize-y"
                   placeholder="例：チームの勉強会を開きたい"
@@ -354,6 +359,7 @@ function SuggestionPanel({ refresh }: { refresh: () => Promise<void> }) {
                 </label>
                 <select
                   id="suggestion-scenario"
+                  disabled={!hydrated || suggest.isPending}
                   className="field"
                   value={field.state.value}
                   onChange={(e) =>
@@ -361,8 +367,8 @@ function SuggestionPanel({ refresh }: { refresh: () => Promise<void> }) {
                   }
                 >
                   <option value="normal">通常</option>
-                  <option value="slow">遅い応答</option>
-                  <option value="error">エラー</option>
+                  <option value="slow">3秒待って成功</option>
+                  <option value="error">3秒待って失敗</option>
                 </select>
               </div>
             )}
@@ -376,8 +382,14 @@ function SuggestionPanel({ refresh }: { refresh: () => Promise<void> }) {
             {suggest.isPending ? "候補を考えています…" : "TODOを提案する"}
           </Button>
         </form>
+        {suggest.isPending && (
+          <output className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-xs leading-6 text-teal-800">
+            <LoaderCircle size={15} className="shrink-0 animate-spin" />
+            目的に合うTODO候補を作成しています…
+          </output>
+        )}
         <ErrorNotice error={suggest.error ?? adopt.error} />
-        {suggest.data && (
+        {!suggest.isPending && suggest.data && (
           <div className="space-y-3 border-t border-stone-100 pt-4">
             <p className="text-xs text-stone-500">気に入った候補だけ追加できます</p>
             {suggest.data.suggestions.map((item, i) => (

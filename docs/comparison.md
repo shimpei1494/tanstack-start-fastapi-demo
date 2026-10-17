@@ -60,6 +60,10 @@ Next.jsにもTanStack Queryを導入できます。対応例は同じQueryキー
 
 AG-UI入力へ変換する境界、受け付けるイベント、IDの整合、実行の終端、途中切断とキャンセルは、どちらのサーバーでも必要です。チャンクを全部読んでから返すと途中表示になりません。`TEXT_MESSAGE_END`だけで実行全体の成功にはせず、`RUN_FINISHED`または`RUN_ERROR`を扱います。SDKの対応型があることと、Pythonから届いた値が正しいことは別なのでアダプターで検証します。詳細は[共通契約](plans/streaming-contract.md)を参照してください。
 
+## 待ち時間を含む取得と更新
+
+[作業レポートの追加例](pending.md)は、Pythonの3秒待機を使い、loaderで取得を開始してSuspenseで集計欄を待ち、再取得ではQueryのisFetchingを使います。AI候補の送信はmutationのisPendingを使います。loading専用stateや取得用useEffectを追加せずに扱う例で、React・Query・Routerの効果として説明します。Next.jsでも目的に合わせてSuspense・Queryを使えるため、Start固有の優位とはしません。
+
 ## 小変更: AI候補に「理由」を追加する
 
 練習用の変更です。現在の候補の保存項目はtitleだけです。理由は候補を選ぶための表示情報として追加し、TODOのテーブルへ保存するかは別に判断します。

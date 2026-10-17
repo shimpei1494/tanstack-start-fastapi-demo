@@ -891,7 +891,8 @@
           ><a href="#stream"><span>04</span>ストリームを追う</a
           ><a href="#comparison"><span>05</span>Next.jsと対応させる</a
           ><a href="#extend"><span>06</span>小さな変更を試す</a
-          ><a href="#evidence"><span>07</span>根拠と制約</a>
+          ><a href="#pending"><span>07</span>待ち時間を扱う</a
+          ><a href="#evidence"><span>08</span>根拠と制約</a>
         </nav>
         <div id="content" class="content">
           <section class="section" id="experience">
@@ -1208,9 +1209,49 @@
               </p>
             </details>
           </section>
-          <section class="section" id="evidence">
+          <section class="section" id="pending">
             <div class="section-title">
               <span class="section-number">07</span>
+              <h2>待っている間も、使える画面に。</h2>
+            </div>
+            <p class="intro">
+              作業レポートはPythonで約3秒待ってから集計を返します。見出しや操作欄を先に表示し、集計欄だけをSuspenseで待ちます。再集計ではQueryのisFetchingを使い、前回の結果を残します。
+            </p>
+            <div class="cards">
+              <article class="card">
+                <span class="tag">INITIAL / SUSPENSE</span>
+                <h3>初回は集計欄だけを待つ</h3>
+                <p>
+                  loaderで取得を開始し、完了を待たずに画面を描画。結果が届くと待機表示を置き換えます。
+                </p>
+              </article>
+              <article class="card">
+                <span class="tag">REFETCH / QUERY</span>
+                <h3>前回の結果を残して更新</h3>
+                <p>
+                  data・isFetching・errorを使い、再取得中や失敗も表示。loading専用stateや取得用useEffectは追加していません。
+                </p>
+              </article>
+              <article class="card">
+                <span class="tag">SUBMIT / MUTATION</span>
+                <h3>送信中は操作を抑える</h3>
+                <p>
+                  TODO候補の送信はmutationのisPendingで待機表示と入力無効化を行い、成功・失敗へつなぎます。
+                </p>
+              </article>
+            </div>
+            <p class="note">
+              待機表示と取得状態はReact・Router・Queryの役割。Startは同じ型付き関数をSSRとブラウザから呼ぶ境界です。初回SSRの失敗ではブラウザで再評価され、APIを再呼び出す場合があります。
+            </p>
+            <div class="reading">
+              <a href="pending.md">操作と短いコード例 ↗</a
+              ><a href="../apps/web/src/features/reports/report-page.tsx">レポート画面 ↗</a
+              ><a href="../apps/web/src/routes/reports.tsx">待たないloader ↗</a>
+            </div>
+          </section>
+          <section class="section" id="evidence">
+            <div class="section-title">
+              <span class="section-number">08</span>
               <h2>確かめた範囲を、残す。</h2>
             </div>
             <p class="intro">

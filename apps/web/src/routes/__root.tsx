@@ -6,7 +6,7 @@ import {
   Link,
 } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
-import { Layers3, ListTodo, MessagesSquare, ArrowUpRight } from "lucide-react";
+import { Layers3, ListTodo, MessagesSquare, BarChart3, ArrowUpRight } from "lucide-react";
 import "../styles.css";
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -75,6 +75,16 @@ function Root() {
                 >
                   <MessagesSquare size={16} />
                   チャット
+                </Link>
+                <Link
+                  to="/reports"
+                  search={{ scenario: "slow" }}
+                  preload={false}
+                  className="nav-link"
+                  activeProps={{ className: "nav-link nav-active" }}
+                >
+                  <BarChart3 size={16} />
+                  レポート
                 </Link>
               </nav>
               <a

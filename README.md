@@ -11,7 +11,7 @@ docker compose up --build -d
 docker compose exec api seed-demo
 ```
 
-[TODO画面](http://localhost:3000/todos) / [チャット画面](http://localhost:3000/chat) / [FastAPI仕様](http://localhost:8000/docs)
+[TODO画面](http://localhost:3000/todos) / [チャット画面](http://localhost:3000/chat) / [作業レポート](http://localhost:3000/reports) / [FastAPI仕様](http://localhost:8000/docs)
 
 seedは初期TODOを重複作成しません。保存先はComposeのPostgreSQL volumeです。`docker compose down` で停止してもTODOが残ります。起動に使うポートは3000（Web）、8000（API）、5435（DB）です。
 
@@ -22,6 +22,12 @@ seedは初期TODOを重複作成しません。保存先はComposeのPostgreSQL 
 3. チャットへ移動しメッセージを送ります。処理工程と部分回答が届きます。「ゆっくり配信」では生成中に停止できます。「配信途中のエラー」「途中切断」「配信開始前のエラー」は完了扱いされません。「返答を再生成」は新しいrunIdで実行します。
 
 AIは入力検証後に同じ固定候補・固定返答を返すfixtureです。会話は画面のメモリ内のみで、再読み込みで消えます。停止後もTODO操作は利用できます。
+
+## 待ち時間とpendingを試す
+
+「レポート」はPython APIが約3秒待ってから、保存済みTODOの集計を返します。初回は集計欄だけが待機表示になり、再集計は前回の結果を残します。「3秒待って失敗」では局所的なエラーと再試行を確認できます。TODO候補の送信も「3秒待って成功／失敗」で試せます。
+
+取得用のuseEffectやloading専用stateを増やさず、Suspense・QueryのisFetching・mutationのisPendingから表示を決めています。コードと役割の解説は [待ち時間の実装](docs/pending.md) を参照してください。
 
 ## ローカル開発
 
