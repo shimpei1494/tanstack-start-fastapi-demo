@@ -1,0 +1,15 @@
+node_modules/
+.output/
+dist/
+.tanstack/
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.db
+playwright-report/
+test-results/
+.DS_Store

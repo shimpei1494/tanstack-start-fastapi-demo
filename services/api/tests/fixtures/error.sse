@@ -1,0 +1,16 @@
+data: {"type":"RUN_STARTED","threadId":"fixture-thread","runId":"fixture-run-error"}
+
+data: {"type":"STEP_STARTED","stepName":"retrieve"}
+
+data: {"type":"STEP_FINISHED","stepName":"retrieve"}
+
+data: {"type":"STEP_STARTED","stepName":"generate"}
+
+data: {"type":"TEXT_MESSAGE_START","messageId":"b832b24b-7913-464f-b962-727e6a2b42b7","role":"assistant"}
+
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"b832b24b-7913-464f-b962-727e6a2b42b7","delta":"まず、目的を小さな作業に分けましょう。\n\n"}
+
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"b832b24b-7913-464f-b962-727e6a2b42b7","delta":"1. テーマとゴールを決める\n"}
+
+data: {"type":"RUN_ERROR","message":"回答の途中でダミーAIが停止しました。再生成をお試しください。","code":"MOCK_STREAM_ERROR"}
+

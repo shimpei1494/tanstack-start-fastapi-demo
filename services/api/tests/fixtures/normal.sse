@@ -1,0 +1,32 @@
+data: {"type":"RUN_STARTED","threadId":"fixture-thread","runId":"fixture-run-normal"}
+
+data: {"type":"STEP_STARTED","stepName":"retrieve"}
+
+data: {"type":"STEP_FINISHED","stepName":"retrieve"}
+
+data: {"type":"STEP_STARTED","stepName":"generate"}
+
+data: {"type":"TEXT_MESSAGE_START","messageId":"b5cb7011-47d1-4e17-8a26-a3f01a0ca300","role":"assistant"}
+
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"b5cb7011-47d1-4e17-8a26-a3f01a0ca300","delta":"まず、目的を小さな作業に分けましょう。\n\n"}
+
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"b5cb7011-47d1-4e17-8a26-a3f01a0ca300","delta":"1. テーマとゴールを決める\n"}
+
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"b5cb7011-47d1-4e17-8a26-a3f01a0ca300","delta":"2. 必要な資料を準備する\n"}
+
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"b5cb7011-47d1-4e17-8a26-a3f01a0ca300","delta":"3. 関係者に案内する\n\n"}
+
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"b5cb7011-47d1-4e17-8a26-a3f01a0ca300","delta":"TODO画面で候補を確認し、必要なものから追加できます。"}
+
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"b5cb7011-47d1-4e17-8a26-a3f01a0ca300","delta":"これは固定ルールで返すダミーAIの回答です。"}
+
+data: {"type":"TEXT_MESSAGE_END","messageId":"b5cb7011-47d1-4e17-8a26-a3f01a0ca300"}
+
+data: {"type":"STEP_FINISHED","stepName":"generate"}
+
+data: {"type":"STEP_STARTED","stepName":"validate"}
+
+data: {"type":"STEP_FINISHED","stepName":"validate"}
+
+data: {"type":"RUN_FINISHED","threadId":"fixture-thread","runId":"fixture-run-normal"}
+
