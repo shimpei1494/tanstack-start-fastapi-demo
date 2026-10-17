@@ -158,3 +158,24 @@ READMEには次の入口を置く。
 TODOと候補提案までの基本版を先に完成させる。アプリの紹介版は、新規モノレポを取得した人が参照用リポジトリなしで起動でき、TODOとストリーミングチャットを体験できたら完成とする。そのコードと画面を基に、Next.jsの対応例を含む説明用HTMLを次の成果物として作る。
 
 本格的な認証、AWS構築、FastAPI側の設計改善、長時間処理、永続ジョブは、この案の初期実装へ追加しない。実際の案件へ適用する際は別の要件として判断する。
+
+## 実装状況（2026-10-17）
+
+| 段階 | 状況 | 成果物・確認 |
+| --- | --- | --- |
+| 1 共通API | 完了 | PostgreSQL、Alembic、seed、CRUD、候補、Python SDKのAG-UI配信。pytestと実DBで検証 |
+| 2 サーバー関数 | 完了 | TODO・候補・チャットをServer Functionsで呼び、入力と応答を検証。型エラー検出範囲とクライアントへの設定非混入を確認 |
+| 3 TODOと候補の画面 | 完了 | URL絞り込み、Query連携、Form、編集・完了・削除、候補採用と失敗表示。SSR初期化前は入力を無効化 |
+| 4 チャット | 完了 | fetcher方式、工程・途中表示・停止・再生成・3種の失敗。実ブラウザからPythonの生成停止まで確認 |
+| 5 比較説明 | 完了 | docs/comparison.mdとNext.js概念例。Next.jsアプリは作らず、型チェック・実行済み例とは扱わない |
+| 6 起動と紹介 | 完了 | Compose、README、docs/guide.html、検証手順。詳しい証跡はdocs/implementation-notes.md |
+
+採用版での確認から、次の調整を行った。
+
+- Start 1.169.3の入力検証は`.validator`を使う。公式最新版の`.inputValidator`記法をそのまま適用しない。
+- TypeScript 7.0.2での型チェックはOxlintへ統合した。openapi-typescript 7.13.0のpeerはTypeScript 5系で、旧コンパイラAPIが必要だったため、型生成だけを独立した`tooling/api-codegen`（TypeScript 5.9.3）へ隔離した。
+- UIはBase UI + cva + Tailwindの共有Buttonをローカル実装した。shadcnのCLI registry生成は行っていない。
+- 配信はServer Functions方式で必要な挙動を満たし、Server Routeへの切り替えは不要だった。
+- 終端イベントだけはEOFまで保留し、重複終端を検出する。本文と工程は逐次配信する。
+
+初見の第三者による小変更の所要時間、Next.jsとの性能・工数比較、実モデル・公開運用の確認は未実施であり、完成の範囲とは区別する。

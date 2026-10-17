@@ -1,0 +1,1287 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta
+      name="description"
+      content="TanStack StartとFastAPIの実装を読み、Next.jsの対応コードとサーバー境界を比較するローカルガイド。"
+    />
+    <title>関数から、サーバーへ。— Start × FastAPI 実装ガイド</title>
+    <style>
+      :root {
+        --paper: #f6f5ef;
+        --white: #fffefa;
+        --ink: #193833;
+        --muted: #60716b;
+        --line: #d9e0d7;
+        --green: #146b58;
+        --mint: #e5eee4;
+        --orange: #cc672e;
+        --night: #163c34;
+        --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+        scroll-behavior: smooth;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+        font-size: 15px;
+        line-height: 1.9;
+      }
+      a {
+        color: var(--green);
+        text-underline-offset: 4px;
+      }
+      a:hover {
+        color: var(--orange);
+      }
+      a:focus-visible,
+      summary:focus-visible {
+        outline: 3px solid var(--orange);
+        outline-offset: 5px;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1,
+      h2,
+      h3 {
+        font-weight: 600;
+        line-height: 1.4;
+        letter-spacing: -0.025em;
+      }
+      h1 {
+        font-size: clamp(40px, 6.2vw, 76px);
+      }
+      h2 {
+        font-size: clamp(27px, 3.6vw, 40px);
+      }
+      h3 {
+        font-size: 18px;
+      }
+      p + p {
+        margin-top: 16px;
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.88em;
+      }
+      p code,
+      td code,
+      li code {
+        padding: 2px 5px;
+        background: #e8ece5;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+      }
+      pre {
+        margin: 0;
+        overflow: auto;
+        tab-size: 2;
+        white-space: pre;
+        font: 13px/1.85 var(--mono);
+      }
+      pre code {
+        font: inherit;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+        margin: 16px 0 0;
+      }
+      li + li {
+        margin-top: 8px;
+      }
+      .wrap {
+        width: min(1160px, calc(100% - 64px));
+        margin: auto;
+      }
+      .topbar {
+        border-bottom: 1px solid var(--line);
+      }
+      .topbar .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 22px 0;
+      }
+      .brand {
+        font-size: 13px;
+        font-weight: 650;
+        letter-spacing: 0.04em;
+        text-decoration: none;
+        color: var(--ink);
+      }
+      .brand-mark {
+        display: inline-grid;
+        place-items: center;
+        width: 27px;
+        height: 27px;
+        margin-right: 9px;
+        border: 1px solid var(--green);
+        border-radius: 50%;
+        font-size: 16px;
+      }
+      .toplinks {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        font-size: 12px;
+      }
+      .eyebrow {
+        font: 11px/1.5 var(--mono);
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: var(--green);
+      }
+      .hero {
+        padding: 76px 0 64px;
+        display: grid;
+        grid-template-columns: 1.15fr 1fr;
+        gap: 64px;
+        align-items: center;
+      }
+      .hero h1 {
+        margin: 22px 0 26px;
+      }
+      .hero p {
+        max-width: 520px;
+        color: var(--muted);
+      }
+      .hero h1 em {
+        font-style: normal;
+        color: var(--green);
+      }
+      .pill-row {
+        display: flex;
+        gap: 9px;
+        flex-wrap: wrap;
+        margin-top: 28px;
+      }
+      .pill {
+        font: 11px/1.5 var(--mono);
+        padding: 7px 10px;
+        border: 1px solid #b9d2c3;
+        border-radius: 100px;
+        color: var(--green);
+      }
+      .architecture {
+        background: var(--night);
+        border-radius: 22px;
+        padding: 30px;
+        color: #f1f5e9;
+        box-shadow: 0 20px 45px #173c3414;
+      }
+      .architecture .eyebrow {
+        color: #a1c6b3;
+      }
+      .arch-row {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        margin-top: 20px;
+      }
+      .arch-block {
+        flex: 1;
+        border: 1px solid #6c90816b;
+        border-radius: 12px;
+        padding: 18px 16px;
+      }
+      .arch-block small {
+        font: 10px/1.5 var(--mono);
+        color: #b3c9ba;
+      }
+      .arch-block strong {
+        display: block;
+        font-size: 17px;
+        margin-top: 4px;
+      }
+      .arch-block p {
+        font-size: 11px;
+        line-height: 1.7;
+        color: #b3c9ba;
+        margin-top: 8px;
+      }
+      .arch-arrow {
+        font: 20px var(--mono);
+        text-align: center;
+        color: #a3cbb3;
+      }
+      .arch-caption {
+        padding-top: 18px;
+        margin-top: 20px;
+        border-top: 1px solid #6c90816b;
+        font-size: 11px;
+        color: #b3c9ba;
+      }
+      .scope {
+        display: flex;
+        gap: 18px;
+        align-items: flex-start;
+        background: var(--mint);
+        border: 1px solid #cfddce;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-bottom: 55px;
+        font-size: 12px;
+        color: #3d5d4b;
+      }
+      .scope strong {
+        white-space: nowrap;
+        color: var(--green);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 180px minmax(0, 1fr);
+        gap: 48px;
+        padding-bottom: 80px;
+      }
+      .toc {
+        align-self: start;
+        position: sticky;
+        top: 30px;
+        font-size: 12px;
+      }
+      .toc p {
+        margin-bottom: 15px;
+        color: var(--muted);
+        font: 10px var(--mono);
+        letter-spacing: 0.13em;
+      }
+      .toc a {
+        display: block;
+        text-decoration: none;
+        padding: 9px 0;
+        color: var(--muted);
+        border-bottom: 1px solid var(--line);
+      }
+      .toc a span {
+        font: 10px var(--mono);
+        margin-right: 8px;
+        color: var(--green);
+      }
+      .content {
+        min-width: 0;
+      }
+      .section {
+        scroll-margin-top: 28px;
+        border-top: 1px solid var(--line);
+        padding-top: 32px;
+        margin-bottom: 60px;
+      }
+      .section-title {
+        display: flex;
+        align-items: baseline;
+        gap: 18px;
+        margin-bottom: 22px;
+      }
+      .section-number {
+        font: 12px var(--mono);
+        color: var(--orange);
+      }
+      .intro {
+        font-size: 14px;
+        color: var(--muted);
+        max-width: 700px;
+        margin-bottom: 25px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+      }
+      .card {
+        padding: 24px 20px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--white);
+      }
+      .card .tag {
+        font: 10px var(--mono);
+        color: var(--green);
+        display: block;
+        margin-bottom: 14px;
+      }
+      .card p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 13px;
+      }
+      .card a {
+        display: inline-block;
+        font-size: 11px;
+        margin-top: 17px;
+      }
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+      }
+      .step {
+        border-left: 2px solid #b5cebd;
+        padding: 4px 0 4px 18px;
+      }
+      .step b {
+        font: 11px var(--mono);
+        color: var(--orange);
+      }
+      .step h3 {
+        font-size: 16px;
+        margin-top: 9px;
+      }
+      .step p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 9px;
+      }
+      .code-panel {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+        margin-top: 24px;
+        background: var(--white);
+      }
+      .code-label {
+        font: 11px/1.6 var(--mono);
+        padding: 13px 20px;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        background: #eff1e9;
+      }
+      .code-panel pre {
+        padding: 23px;
+        color: #253e34;
+      }
+      .comment {
+        color: #77877b;
+      }
+      .key {
+        color: #876111;
+      }
+      .str {
+        color: #1d755c;
+      }
+      .note {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 18px;
+      }
+      .callout {
+        border-left: 3px solid var(--orange);
+        padding: 4px 0 4px 18px;
+        font-size: 13px;
+        margin-top: 26px;
+      }
+      .roles {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--white);
+      }
+      .role {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--line);
+      }
+      .role:nth-child(odd) {
+        border-right: 1px solid var(--line);
+      }
+      .role:nth-last-child(-n + 2) {
+        border-bottom: none;
+      }
+      .role h3 {
+        font-size: 15px;
+      }
+      .role p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 7px;
+      }
+      .table-scroll {
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--white);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 12px;
+      }
+      th {
+        background: #eaf0e6;
+        font-weight: 600;
+      }
+      th,
+      td {
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      td:first-child {
+        color: var(--green);
+        font-weight: 600;
+        min-width: 110px;
+      }
+      th {
+        min-width: 200px;
+      }
+      th:first-child {
+        min-width: 110px;
+      }
+      .timeline {
+        display: flex;
+        gap: 0;
+        margin-top: 25px;
+        background: var(--night);
+        border-radius: 12px;
+        padding: 26px 20px;
+        color: #dbeadd;
+        overflow: auto;
+      }
+      .event {
+        flex: 1;
+        min-width: 120px;
+        padding: 0 13px;
+        border-right: 1px solid #426153;
+      }
+      .event:last-child {
+        border-right: 0;
+      }
+      .event small {
+        font: 9px var(--mono);
+        color: #a7c8ae;
+      }
+      .event strong {
+        display: block;
+        margin-top: 9px;
+        font-size: 12px;
+      }
+      .event p {
+        font: 10px/1.8 var(--mono);
+        color: #aac5b6;
+        margin-top: 9px;
+      }
+      .details-list {
+        margin-top: 24px;
+      }
+      details {
+        padding: 17px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      summary {
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      details p {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 13px 0 0 18px;
+      }
+      .exercise {
+        padding: 28px;
+        border: 1px solid #c4d9c8;
+        background: #edf2e8;
+        border-radius: 12px;
+      }
+      .exercise h3 {
+        font-size: 19px;
+      }
+      .exercise p,
+      .exercise li {
+        font-size: 12px;
+        color: #526956;
+      }
+      .exercise p {
+        margin-top: 13px;
+      }
+      .exercise a {
+        font-weight: 500;
+      }
+      .source-list {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 5px 20px;
+        list-style: none;
+        padding: 0;
+      }
+      .source-list li {
+        font-size: 11px;
+        margin: 0;
+      }
+      .footer {
+        border-top: 1px solid var(--line);
+        padding: 25px 0 35px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .footer .wrap {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .btn {
+        display: inline-block;
+        margin-top: 25px;
+        border-radius: 6px;
+        background: var(--green);
+        color: white;
+        text-decoration: none;
+        padding: 10px 17px;
+        font-size: 12px;
+      }
+      .btn:hover {
+        color: white;
+        background: #254d3f;
+      }
+      .skip {
+        position: absolute;
+        left: 20px;
+        top: -100px;
+        padding: 10px;
+        background: white;
+      }
+      .skip:focus {
+        top: 10px;
+        z-index: 5;
+      }
+      .reading {
+        margin-top: 23px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 22px;
+        font-size: 11px;
+      }
+      .checks {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .checks li {
+        padding-left: 3px;
+      }
+      .link-arrow {
+        font-family: var(--mono);
+        margin-left: 5px;
+      }
+      .screenshots {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        margin-top: 16px;
+      }
+      .screenshots figure {
+        margin: 0;
+        min-width: 0;
+      }
+      .screenshots a {
+        display: block;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+        background: white;
+      }
+      .screenshots img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .screenshots figcaption {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      @media (max-width: 980px) {
+        .hero {
+          gap: 30px;
+        }
+        .layout {
+          grid-template-columns: 145px minmax(0, 1fr);
+          gap: 28px;
+        }
+        .cards {
+          grid-template-columns: 1fr;
+        }
+        .card {
+          padding: 21px;
+        }
+        .card p {
+          margin-top: 7px;
+        }
+        .card a {
+          margin-top: 10px;
+        }
+        .hero h1 {
+          font-size: 50px;
+        }
+      }
+      @media (max-width: 720px) {
+        .screenshots {
+          grid-template-columns: 1fr;
+        }
+        .wrap {
+          width: calc(100% - 36px);
+        }
+        .topbar .wrap {
+          padding: 16px 0;
+          align-items: flex-start;
+        }
+        .brand {
+          font-size: 11px;
+        }
+        .toplinks {
+          gap: 9px;
+          flex-direction: column;
+          font-size: 10px;
+        }
+        .hero {
+          display: block;
+          padding: 44px 0 30px;
+        }
+        .hero h1 {
+          font-size: 49px;
+          margin-top: 15px;
+        }
+        .hero p {
+          font-size: 13px;
+        }
+        .architecture {
+          margin-top: 32px;
+          padding: 23px;
+        }
+        .scope {
+          display: block;
+          padding: 18px;
+          margin-bottom: 30px;
+        }
+        .scope strong {
+          display: block;
+          margin-bottom: 6px;
+        }
+        .layout {
+          display: block;
+        }
+        .toc {
+          position: static;
+          margin-bottom: 30px;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 0 20px;
+        }
+        .toc p {
+          grid-column: 1/-1;
+          margin-bottom: 6px;
+        }
+        .section {
+          margin-bottom: 43px;
+          padding-top: 25px;
+        }
+        .section-title {
+          gap: 12px;
+          margin-bottom: 17px;
+        }
+        .steps {
+          grid-template-columns: 1fr;
+        }
+        .step {
+          padding: 2px 0 2px 15px;
+        }
+        .step h3 {
+          margin-top: 4px;
+        }
+        .roles {
+          grid-template-columns: 1fr;
+        }
+        .role:nth-child(odd) {
+          border-right: none;
+        }
+        .role:nth-last-child(2) {
+          border-bottom: 1px solid var(--line);
+        }
+        .source-list {
+          grid-template-columns: 1fr;
+        }
+        .exercise {
+          padding: 21px;
+        }
+        .code-panel pre {
+          font-size: 11px;
+          padding: 17px;
+        }
+        .footer .wrap {
+          display: block;
+        }
+        .footer p + p {
+          margin-top: 7px;
+        }
+        .intro {
+          font-size: 13px;
+        }
+        .timeline {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          padding: 15px 10px;
+          overflow: visible;
+        }
+        .event {
+          min-width: 0;
+          padding: 14px 13px;
+        }
+        .event:nth-child(even) {
+          border-right: none;
+        }
+        .event:nth-child(-n + 2) {
+          border-bottom: 1px solid #426153;
+        }
+        .event p {
+          font-size: 9px;
+          overflow-wrap: anywhere;
+        }
+
+        .arch-block {
+          padding: 14px 12px;
+        }
+        .arch-block strong {
+          font-size: 15px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        :root {
+          scroll-behavior: auto;
+        }
+      }
+      @media print {
+        body {
+          font-size: 10px;
+          background: white;
+        }
+        .wrap {
+          width: 100%;
+        }
+        .topbar,
+        .toc,
+        .btn {
+          display: none;
+        }
+        .hero {
+          padding: 20px 0;
+          gap: 25px;
+        }
+        .hero h1 {
+          font-size: 40px;
+        }
+        .layout {
+          display: block;
+        }
+        .section {
+          break-inside: avoid;
+          margin-bottom: 25px;
+        }
+        .scope {
+          margin-bottom: 25px;
+        }
+        .architecture,
+        .timeline {
+          print-color-adjust: exact;
+        }
+        .footer {
+          padding-bottom: 0;
+        }
+        .source-list {
+          display: block;
+        }
+        a {
+          color: var(--green);
+        }
+        details p {
+          display: block;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip" href="#content">本文へ移動</a>
+    <header class="topbar">
+      <div class="wrap">
+        <a class="brand" href="../README.md"
+          ><span class="brand-mark" aria-hidden="true">↗</span>START × FASTAPI</a
+        >
+        <nav class="toplinks" aria-label="関連資料">
+          <a href="../README.md">起動する</a><a href="comparison.md">詳しい比較</a
+          ><a href="implementation-notes.md">検証と制約</a>
+        </nav>
+      </div>
+    </header>
+    <main class="wrap">
+      <div class="hero">
+        <div>
+          <p class="eyebrow">Implementation field notes / 01</p>
+          <h1>関数から、<br /><em>サーバーへ。</em></h1>
+          <p>
+            TODOとダミーAIを題材に、画面からPython APIまでを追う。TanStack
+            Startのサーバー関数と、Next.jsで書く場合の対応コードを読む実装ガイドです。
+          </p>
+          <div class="pill-row">
+            <span class="pill">START / SERVER FUNCTIONS</span><span class="pill">QUERY / STATE</span
+            ><span class="pill">AG-UI / STREAMING</span>
+          </div>
+        </div>
+        <figure
+          class="architecture"
+          aria-label="ブラウザからStart、FastAPI、PostgreSQLとダミーAIへ接続する構成図"
+          style="margin-left: 0; margin-right: 0"
+        >
+          <p class="eyebrow">Follow the request</p>
+          <div class="arch-row">
+            <div class="arch-block">
+              <small>01 / CLIENT</small><strong>ブラウザ</strong>
+              <p>画面・入力・会話の状態</p>
+            </div>
+            <span class="arch-arrow" aria-hidden="true">→</span>
+            <div class="arch-block">
+              <small>02 / WEB SERVER</small><strong>TanStack Start</strong>
+              <p>入力検証・型付きRPC</p>
+            </div>
+          </div>
+          <div class="arch-arrow" style="padding-top: 13px" aria-hidden="true">↓</div>
+          <div class="arch-row" style="margin-top: 8px">
+            <div class="arch-block">
+              <small>03 / INTERNAL API</small><strong>FastAPI</strong>
+              <p>TODO保存・候補・時間差の配信</p>
+            </div>
+            <span class="arch-arrow" aria-hidden="true">→</span>
+            <div class="arch-block">
+              <small>04 / DATA & LOGIC</small><strong>DB / ダミーAI</strong>
+              <p>PostgreSQL・固定応答</p>
+            </div>
+          </div>
+          <figcaption class="arch-caption">
+            接続先はサーバー設定へ。ブラウザはStartを経由し、内部APIへ直接接続しません。
+          </figcaption>
+        </figure>
+      </div>
+      <div class="scope">
+        <strong>この資料の範囲</strong
+        ><span
+          >Startはこのリポジトリの実装を参照。Next.jsは未実行・未型チェックの概念例です。両アプリの工数・性能を実測した比較ではありません。公式資料の確認日：2026-10-17。</span
+        >
+      </div>
+      <div class="layout">
+        <nav class="toc" aria-label="目次">
+          <p>READ THE IMPLEMENTATION</p>
+          <a href="#experience"><span>01</span>まず操作する</a
+          ><a href="#boundary"><span>02</span>サーバー境界を読む</a
+          ><a href="#roles"><span>03</span>役割を分ける</a
+          ><a href="#stream"><span>04</span>ストリームを追う</a
+          ><a href="#comparison"><span>05</span>Next.jsと対応させる</a
+          ><a href="#extend"><span>06</span>小さな変更を試す</a
+          ><a href="#evidence"><span>07</span>根拠と制約</a>
+        </nav>
+        <div id="content" class="content">
+          <section class="section" id="experience">
+            <div class="section-title">
+              <span class="section-number">01</span>
+              <h2>操作から、コードへ。</h2>
+            </div>
+            <p class="intro">
+              画面の操作を一つ選び、その処理がどこで実行されるかを追ってみます。外部AIのAPIキーは不要です。
+            </p>
+            <div class="cards">
+              <article class="card">
+                <span class="tag">/TODOS → CRUD</span>
+                <h3>小さな作業を管理する</h3>
+                <p>追加、編集、完了切り替え、削除。絞り込みはURLに残り、TODOはDBへ保存されます。</p>
+                <a href="../apps/web/src/features/todos/todo-page.tsx"
+                  >TODOの画面コード<span class="link-arrow">↗</span></a
+                >
+              </article>
+              <article class="card">
+                <span class="tag">/TODOS → SUGGESTIONS</span>
+                <h3>候補を見て、採用する</h3>
+                <p>目的文から固定候補を取得。必要な候補の「TODOに追加」を押すまで保存しません。</p>
+                <a href="../apps/web/src/server/functions/todos.ts"
+                  >候補取得のサーバー関数<span class="link-arrow">↗</span></a
+                >
+              </article>
+              <article class="card">
+                <span class="tag">/CHAT → SSE</span>
+                <h3>途中から返答を読む</h3>
+                <p>
+                  工程とテキストが順に届きます。遅い応答、停止、配信前後のエラー、途中切断を試せます。
+                </p>
+                <a href="../apps/web/src/features/chat/chat-page.tsx"
+                  >チャットの画面コード<span class="link-arrow">↗</span></a
+                >
+              </article>
+            </div>
+            <h3 style="margin-top: 30px">動作中の画面</h3>
+            <p class="note">
+              このリポジトリのStartアプリを撮影した画像です。画像を開くと拡大できます。
+            </p>
+            <div class="screenshots">
+              <figure>
+                <a href="screenshots/todos.png"
+                  ><img
+                    src="screenshots/todos.png"
+                    width="1440"
+                    height="1104"
+                    loading="lazy"
+                    alt="TODOの一覧、追加フォーム、完了状態の絞り込み、AI候補フォームがある実装済み画面"
+                /></a>
+                <figcaption>/todos · TODOと候補提案</figcaption>
+              </figure>
+              <figure>
+                <a href="screenshots/chat.png"
+                  ><img
+                    src="screenshots/chat.png"
+                    width="1440"
+                    height="1114"
+                    loading="lazy"
+                    alt="利用者の相談とダミーAIの完了した回答、再生成ボタン、配信シナリオ選択がある実装済みチャット画面"
+                /></a>
+                <figcaption>/chat · ダミーAIとの会話</figcaption>
+              </figure>
+            </div>
+            <a class="btn" href="../README.md">起動手順とデモ操作を開く →</a>
+          </section>
+          <section class="section" id="boundary">
+            <div class="section-title">
+              <span class="section-number">02</span>
+              <h2>境界は、関数に置く。</h2>
+            </div>
+            <p class="intro">
+              画面がサーバー関数を呼び、そのハンドラーだけが内部APIへ接続します。画面入力とHTTP応答には、それぞれ実行時の検証が必要です。
+            </p>
+            <div class="steps">
+              <article class="step">
+                <b>01 / UI & ROUTER</b>
+                <h3>取得条件を決める</h3>
+                <p>URLのfilterを検証。loaderと画面が同じQuery定義を使います。</p>
+              </article>
+              <article class="step">
+                <b>02 / SERVER FUNCTION</b>
+                <h3>入力を検証する</h3>
+                <p>TypeScriptの型に加え、Zodで実際の入力値を確認します。</p>
+              </article>
+              <article class="step">
+                <b>03 / INTERNAL CLIENT</b>
+                <h3>APIへ接続する</h3>
+                <p>サーバー設定を使い、戻ってきたJSONもZodで確認します。</p>
+              </article>
+            </div>
+            <div class="code-panel">
+              <div class="code-label">apps/web/src/server/functions/todos.ts · 読むための抜粋</div>
+              <pre><code><span class="comment">// 画面からimportできる入口。handlerはサーバーで動く。</span>
+<span class="key">export const</span> suggestTodos = createServerFn({ method: <span class="str">'POST'</span> })
+  .validator(suggestionInputSchema)
+  .handler(<span class="key">async</span> ({ data }) =&gt; {
+    <span class="key">const</span> result = <span class="key">await</span> apiClient().POST(<span class="str">'/ai/suggestions'</span>, {
+      body: data,
+    })
+    <span class="key">return</span> checked(suggestionsSchema, result.data, result.error)
+  })</code></pre>
+            </div>
+            <p class="note">
+              サーバー専用クライアント：<a href="../apps/web/src/server/api-client/client.server.ts"
+                >client.server.ts</a
+              >。接続先のAPI_BASE_URLは、返却値や画面の設定へ含めません。
+            </p>
+            <div class="callout">
+              <strong>loaderは常にサーバーで動くわけではありません。</strong
+              ><br />ブラウザ遷移でも動くため、内部APIクライアントを直接呼ばずサーバー関数を経由します。Next.jsのServer
+              Componentとは実行境界が異なります。
+            </div>
+          </section>
+          <section class="section" id="roles">
+            <div class="section-title">
+              <span class="section-number">03</span>
+              <h2>便利さの、担当を分ける。</h2>
+            </div>
+            <p class="intro">
+              画面のコードが短くなった理由を、すべてStartの効果にはしません。各ライブラリが担当する範囲があります。
+            </p>
+            <div class="roles">
+              <article class="role">
+                <h3>Start → サーバーの呼び出し</h3>
+                <p>SSRと型付きサーバー関数。ブラウザとサーバーの境界を、関数定義として置きます。</p>
+              </article>
+              <article class="role">
+                <h3>Router → URLと取得の準備</h3>
+                <p>
+                  検証済みの絞り込み、loader、遷移とエラー境界。画面を開く前に必要なデータを用意します。
+                </p>
+              </article>
+              <article class="role">
+                <h3>Query → 取得と更新の状態</h3>
+                <p>
+                  キャッシュ、読込状態、mutation、成功後の一覧無効化。サーバー関数を呼ぶだけではこの管理は付きません。
+                </p>
+              </article>
+              <article class="role">
+                <h3>TanStack AI → 会話と受信</h3>
+                <p>
+                  イベントからメッセージを更新し、停止や再生成を扱います。同じSDKをNext.jsでも利用できます。
+                </p>
+              </article>
+              <article class="role">
+                <h3>契約 → 言語間の接続</h3>
+                <p>
+                  JSONはOpenAPI型とZod。チャットはAG-UIのイベントと順序を検証します。型生成だけで実行時検証は完結しません。
+                </p>
+              </article>
+              <article class="role">
+                <h3>FastAPI → データと生成処理</h3>
+                <p>TODOをPostgreSQLへ保存し、ダミーAIの候補と時間差のイベントを返します。</p>
+              </article>
+            </div>
+            <p class="note">
+              SSRのQueryClientはリクエストごとに生成します。編集中の文字列や採用済み候補など、画面固有のstateはUI側で管理します。
+            </p>
+          </section>
+          <section class="section" id="stream">
+            <div class="section-title">
+              <span class="section-number">04</span>
+              <h2>完了前に、届く。</h2>
+            </div>
+            <p class="intro">
+              Pythonのasync
+              generatorが時間差でイベントを生成し、Startが検証しながら中継します。ブラウザだけで文字送りをする方式ではありません。
+            </p>
+            <div class="timeline" aria-label="チャットの正常配信の順序">
+              <article class="event">
+                <small>01 / RUN</small><strong>実行が始まる</strong>
+                <p>RUN_STARTED</p>
+              </article>
+              <article class="event">
+                <small>02 / STEP</small><strong>工程を知らせる</strong>
+                <p>STEP_STARTED<br />STEP_FINISHED</p>
+              </article>
+              <article class="event">
+                <small>03 / TEXT</small><strong>差分を受け取る</strong>
+                <p>TEXT_MESSAGE_START<br />CONTENT × N<br />TEXT_MESSAGE_END</p>
+              </article>
+              <article class="event">
+                <small>04 / END</small><strong>実行を閉じる</strong>
+                <p>RUN_FINISHED</p>
+              </article>
+            </div>
+            <div class="details-list">
+              <details open>
+                <summary>途中エラーと正常終了を分ける</summary>
+                <p>
+                  配信開始後の失敗はRUN_ERROR。終端のない切断を成功に補完しません。TEXT_MESSAGE_ENDは返答テキストの終了で、実行全体の成功はRUN_FINISHEDで確認します。
+                </p>
+              </details>
+              <details>
+                <summary>停止要求をPythonまでつなぐ</summary>
+                <p>
+                  useChatの停止からブラウザのAbortSignal、Startの上流HTTP、Pythonの生成器までをつなぎます。signalを画面で渡すだけでは上流の停止を保証できません。切断検出と生成器の終了はテストで確かめる対象です。
+                </p>
+              </details>
+              <details>
+                <summary>対応範囲を小さく保つ</summary>
+                <p>
+                  userとassistantのテキスト、実行・工程・差分・終端イベントが対象です。ツール、添付、履歴DB、再接続による途中再開は含めません。会話は画面のメモリ内にあり、再読み込みで消えます。
+                </p>
+              </details>
+            </div>
+            <div class="reading">
+              <a href="../apps/web/src/server/functions/chat.ts">Startの配信入口 ↗</a
+              ><a href="../packages/chat-adapter/src/index.ts">イベント検証 ↗</a
+              ><a href="../services/api/src/demo_api/chat.py">Pythonの生成器 ↗</a
+              ><a href="plans/streaming-contract.md">共通契約 ↗</a>
+            </div>
+          </section>
+          <section class="section" id="comparison">
+            <div class="section-title">
+              <span class="section-number">05</span>
+              <h2>同じ操作を、Next.jsなら。</h2>
+            </div>
+            <p class="intro">
+              同じFastAPI、同じデータ、同じダミーAIを前提にした対応です。取得にServer
+              Component、操作にServer Action、HTTP配信にRoute Handlerを使います。
+            </p>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>目的</th>
+                    <th>このStart実装</th>
+                    <th>Next.jsの概念例</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>一覧取得</td>
+                    <td>loader → Query → GETサーバー関数</td>
+                    <td>
+                      Server Component → サーバー専用関数<br /><a href="snippets/next-read.md"
+                        >対応コード ↗</a
+                      >
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>TODO追加</td>
+                    <td>Form → mutation → POSTサーバー関数</td>
+                    <td>
+                      フォーム → Server Action → 再検証<br /><a href="snippets/next-mutations.md"
+                        >対応コード ↗</a
+                      >
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Queryの利用</td>
+                    <td>loaderと画面が同じQuery定義を共有</td>
+                    <td>
+                      サーバー事前取得 + Hydration + ブラウザ用HTTP<br /><a
+                        href="snippets/next-query.md"
+                        >同じ取得条件の例 ↗</a
+                      >
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>チャット</td>
+                    <td>同じuseChatのfetcher → サーバー関数</td>
+                    <td>
+                      同じuseChatのHTTP接続 → Route Handler<br /><a href="snippets/next-chat.md"
+                        >同じSDKを使う例 ↗</a
+                      >
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="callout">
+              比較で見るのは「どこで動くか」「何を追加すればよいか」「型と値の検証がどこまで届くか」。QueryやAI
+              SDKの便利さと、フレームワーク固有の呼び出し方を分けます。
+            </div>
+            <p class="note">
+              Next.jsは概念例のみ。インストール、型チェック、ビルド、アプリの動作確認は行っていません。行数や理解時間の比較実験も未実施です。
+            </p>
+            <a class="btn" href="comparison.md">対応表と設計の判断を詳しく読む →</a>
+          </section>
+          <section class="section" id="extend">
+            <div class="section-title">
+              <span class="section-number">06</span>
+              <h2>一項目、増やしてみる。</h2>
+            </div>
+            <div class="exercise">
+              <p class="eyebrow">Small change exercise</p>
+              <h3>AI候補に「提案した理由」を追加する</h3>
+              <p>
+                理由は候補を選ぶための表示情報。TODOとして保存する項目はtitleのまま、と決めて変更箇所を追います。
+              </p>
+              <ol>
+                <li>PythonのSuggestionとfixtureにreasonを追加する。</li>
+                <li>OpenAPIを再出力し、TypeScriptの生成型を更新する。</li>
+                <li>suggestionsSchemaへreasonのZod検証を追加する。</li>
+                <li>候補のUIへ理由を表示する。採用操作はtitleだけを保存する。</li>
+                <li>型チェックとAPI・画面の該当テストを確認する。</li>
+              </ol>
+              <p><a href="comparison.md">ファイルごとの変更手順を読む ↗</a></p>
+            </div>
+            <p class="note">
+              関数の戻り型が画面まで伝わる部分と、Python ↔
+              TypeScript間の契約更新は別です。この練習の実施時間や初見の理解度はまだ計測していません。
+            </p>
+            <details>
+              <summary>チャットを使わない案件では</summary>
+              <p>
+                チャットroute・専用UI・配信関数・chat-adapter・TanStack
+                AI依存と、PythonのチャットAPI・AG-UI依存・対応テストを削除します。TODOとJSONの候補提案は残せます。OpenAPI・lockfile・生成routeを更新して検証します。詳細は比較資料にあります。
+              </p>
+            </details>
+          </section>
+          <section class="section" id="evidence">
+            <div class="section-title">
+              <span class="section-number">07</span>
+              <h2>確かめた範囲を、残す。</h2>
+            </div>
+            <p class="intro">
+              この資料は実装を読むための地図です。テストの実行結果や依存互換性の判断は、実装メモとリポジトリ内のテストから確認してください。
+            </p>
+            <ul class="checks">
+              <li>
+                ローカルの単一利用者向けデモ。認証・利用者別権限・公開環境の運用は別の要件です。
+              </li>
+              <li>
+                実AI・RAG・添付・ツール実行・永続ジョブ・履歴DB・途中再開は実装範囲に含めません。
+              </li>
+              <li>SDKの型が存在することと、Pythonから届くデータが正しいことは別です。</li>
+              <li>プロキシのバッファリングや切断検出の速さは、配置先ごとに確認が必要です。</li>
+            </ul>
+            <div class="reading">
+              <a href="implementation-notes.md">依存と検証の記録 ↗</a
+              ><a href="../tests">統合・画面テスト ↗</a
+              ><a href="../services/api/tests">APIテスト ↗</a>
+            </div>
+            <h3 style="margin-top: 32px">公式資料</h3>
+            <ul class="source-list">
+              <li>
+                <a
+                  href="https://tanstack.com/start/latest/docs/framework/react/guide/server-functions"
+                  >Start / Server Functions</a
+                >
+              </li>
+              <li>
+                <a href="https://tanstack.com/query/latest/docs/framework/react/guides/advanced-ssr"
+                  >Query / Advanced Server Rendering</a
+                >
+              </li>
+              <li>
+                <a href="https://tanstack.com/ai/latest/docs/transports/server-functions"
+                  >TanStack AI / Server Functions</a
+                >
+              </li>
+              <li>
+                <a href="https://tanstack.com/ai/latest/docs/transports/overview"
+                  >TanStack AI / Transports</a
+                >
+              </li>
+              <li>
+                <a href="https://nextjs.org/docs/app/getting-started/fetching-data"
+                  >Next.js / Fetching Data</a
+                >
+              </li>
+              <li>
+                <a href="https://nextjs.org/docs/app/getting-started/mutating-data"
+                  >Next.js / Mutating Data</a
+                >
+              </li>
+              <li>
+                <a href="https://nextjs.org/docs/app/api-reference/file-conventions/route"
+                  >Next.js / Route Handler</a
+                >
+              </li>
+            </ul>
+            <p class="note">
+              実装の依存バージョンは各package.json・lockfileを参照。公式ドキュメントの最新版とは分けて扱います。実装済みアプリの画面、構成図、実装へのリンクを掲載しています。
+            </p>
+          </section>
+        </div>
+      </div>
+    </main>
+    <footer class="footer">
+      <div class="wrap">
+        <p>tanstack-start-fastapi-demo / 実装ガイド</p>
+        <p>オフラインで読めるローカル資料 · 外部フォント・スクリプトなし</p>
+      </div>
+    </footer>
+  </body>
+</html>
