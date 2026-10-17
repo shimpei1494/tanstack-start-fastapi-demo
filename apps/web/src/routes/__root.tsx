@@ -42,7 +42,7 @@ function Root() {
       <body>
         <div className="min-h-screen">
           <header className="border-b border-stone-200 bg-white/90">
-            <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
+            <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-8">
               <Link
                 to="/todos"
                 search={{ filter: "all" }}
@@ -55,7 +55,10 @@ function Root() {
                   workroom<span className="ml-2 text-xs font-normal text-stone-400">DEMO</span>
                 </span>
               </Link>
-              <nav aria-label="メイン" className="flex gap-1">
+              <nav
+                aria-label="メイン"
+                className="order-3 flex w-full justify-center gap-1 sm:order-none sm:w-auto"
+              >
                 <Link
                   to="/todos"
                   search={{ filter: "all" }}

@@ -85,3 +85,21 @@ for (const scenario of ["error", "disconnect", "before-error"]) {
     await expect(page.getByRole("button", { name: "返答を再生成" })).toBeVisible();
   });
 }
+
+test("stopping before first text allows the next message in the same conversation", async ({
+  page,
+}) => {
+  await page.goto("/chat");
+  await page.getByLabel("次の応答").selectOption("slow");
+  await page.getByLabel("メッセージ", { exact: true }).fill("最初の文字が届く前に止める");
+  await page.getByRole("button", { name: "メッセージを送信" }).click();
+  await expect(page.getByTestId("assistant-message")).toBeVisible();
+  await page.getByRole("button", { name: "停止", exact: true }).click();
+  await expect(page.getByTestId("chat-status")).toHaveText("生成を停止しました（未完了）");
+  await page.getByLabel("次の応答").selectOption("normal");
+  await page.getByLabel("メッセージ", { exact: true }).fill("続けて相談したい");
+  await page.getByRole("button", { name: "メッセージを送信" }).click();
+  await expect(page.getByTestId("chat-status")).toHaveText("回答が完了しました");
+  await expect(page.getByTestId("assistant-message").last()).not.toBeEmpty();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});

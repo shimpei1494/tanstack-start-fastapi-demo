@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { toServerSentEventsResponse, type UIMessage } from "@tanstack/ai";
+import { StreamProcessor, toServerSentEventsResponse, type UIMessage } from "@tanstack/ai";
 import { chatInputSchema, runAgentInputSchema } from "./input";
 import { ChatEventValidator } from "./events";
 import { readChatEvents, readSseJson, relayChatEvents } from "./sse";
@@ -94,6 +94,99 @@ describe("restricted AG-UI input", () => {
     expect(runAgentInputSchema.safeParse({ ...input, state: { secret: "x" } }).success).toBe(false);
     expect(
       runAgentInputSchema.safeParse({ ...input, forwardedProps: { prompt: "x" } }).success,
+    ).toBe(false);
+  });
+  it("omits the SDK's assistant placeholder after stopping before the first delta", () => {
+    const processor = new StreamProcessor({
+      initialMessages: [
+        { id: "u1", role: "user", parts: [{ type: "text", content: "最初の質問" }] },
+      ],
+    });
+    const validator = new ChatEventValidator(ids);
+    processor.processChunk(validator.accept(started));
+    processor.processChunk(validator.accept(startText));
+    expect(processor.getMessages().at(-1)?.parts).toEqual([]);
+    const next = chatInputSchema.parse({
+      ...ids,
+      messages: [
+        ...processor.getMessages(),
+        { id: "u2", role: "user", parts: [{ type: "text", content: "次の質問" }] },
+      ],
+    });
+    expect(next.messages).toEqual([
+      { id: "u1", role: "user", content: "最初の質問" },
+      { id: "u2", role: "user", content: "次の質問" },
+    ]);
+  });
+  it("does not hide unsupported content or empty users while normalizing placeholders", () => {
+    for (const message of [
+      { id: "empty-user", role: "user", parts: [] },
+      { id: "empty-user", role: "user", parts: [{ type: "text", content: " \n\t " }] },
+      {
+        id: "unsupported",
+        role: "assistant",
+        parts: [{ type: "tool-call", id: "tool-1", name: "search", arguments: "{}" }],
+      },
+    ]) {
+      expect(
+        chatInputSchema.safeParse({ ...input, messages: [message, ...input.messages] }).success,
+      ).toBe(false);
+    }
+  });
+  it("matches Python's stripped text, per-message and aggregate character limits", () => {
+    const run = chatInputSchema.parse(input);
+    const message = run.messages[0];
+    expect(
+      runAgentInputSchema.parse({ ...run, messages: [{ ...message, content: " \n質問\t " }] })
+        .messages[0].content,
+    ).toBe("質問");
+    expect(
+      runAgentInputSchema.safeParse({ ...run, messages: [{ ...message, content: " \n\t " }] })
+        .success,
+    ).toBe(false);
+    expect(
+      runAgentInputSchema.safeParse({
+        ...run,
+        messages: [{ ...message, content: "🌱".repeat(4000) }],
+      }).success,
+    ).toBe(true);
+    expect(
+      runAgentInputSchema.safeParse({
+        ...run,
+        messages: [{ ...message, content: "あ".repeat(4001) }],
+      }).success,
+    ).toBe(false);
+    const messages = Array.from({ length: 5 }, (_, index) => ({
+      ...message,
+      id: `u${index}`,
+      content: "あ".repeat(4000),
+    }));
+    expect(runAgentInputSchema.safeParse({ ...run, messages }).success).toBe(true);
+    expect(
+      runAgentInputSchema.safeParse({
+        ...run,
+        messages: [...messages, { ...message, id: "overflow" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      runAgentInputSchema.safeParse({
+        ...run,
+        messages: Array.from({ length: 40 }, (_, index) => ({
+          ...message,
+          id: `u${index}`,
+          content: "a",
+        })),
+      }).success,
+    ).toBe(true);
+    expect(
+      runAgentInputSchema.safeParse({
+        ...run,
+        messages: Array.from({ length: 41 }, (_, index) => ({
+          ...message,
+          id: `u${index}`,
+          content: "a",
+        })),
+      }).success,
     ).toBe(false);
   });
 });

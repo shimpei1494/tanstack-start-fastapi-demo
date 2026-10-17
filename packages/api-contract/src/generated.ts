@@ -118,11 +118,11 @@ export interface components {
             /** Messages */
             messages: components["schemas"]["DemoMessage"][];
             /** Parentrunid */
-            parentRunId?: string | null;
+            parentRunId?: null;
             /** Protocolversion */
-            protocolVersion?: string | null;
+            protocolVersion?: "1.0" | null;
             /** Resume */
-            resume?: components["schemas"]["ResumeEntry"][] | null;
+            resume?: null;
             /** Runid */
             runId: string;
             /** State */
@@ -147,27 +147,6 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
-        };
-        /**
-         * ResumeEntry
-         * @description An answer to one interrupt, sent on the run that continues from it.
-         */
-        ResumeEntry: {
-            /** Interruptid */
-            interruptId: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
-            /** Payload */
-            payload?: unknown | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "resolved" | "cancelled";
-        } & {
-            [key: string]: unknown;
         };
         /** Suggestion */
         Suggestion: {
