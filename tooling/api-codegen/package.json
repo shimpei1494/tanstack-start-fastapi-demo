@@ -1,0 +1,12 @@
+{
+  "name": "@demo/api-codegen",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "openapi-typescript ../../services/api/openapi.json -o ../../packages/api-contract/src/generated.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

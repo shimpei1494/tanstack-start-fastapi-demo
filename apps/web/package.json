@@ -1,0 +1,26 @@
+{
+  "name": "@demo/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build",
+    "start": "node .output/server/index.mjs"
+  },
+  "dependencies": {
+    "@demo/api-contract": "*",
+    "@demo/chat-adapter": "*",
+    "@demo/ui": "*",
+    "@tanstack/ai": "0.69.0",
+    "@tanstack/ai-react": "0.30.4",
+    "@tanstack/react-form": "1.33.5",
+    "@tanstack/react-query": "5.104.3",
+    "@tanstack/react-router": "1.170.45",
+    "@tanstack/react-router-ssr-query": "1.167.3",
+    "@tanstack/react-start": "1.169.3",
+    "lucide-react": "1.59.0",
+    "openapi-fetch": "0.17.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  }
+}

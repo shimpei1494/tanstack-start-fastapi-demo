@@ -1,0 +1,13 @@
+{
+  "name": "@demo/chat-adapter",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@ag-ui/core": "1.0.0",
+    "@tanstack/ai": "0.69.0",
+    "zod": "4.6.7"
+  }
+}

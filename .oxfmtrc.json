@@ -1,0 +1,12 @@
+{
+  "semi": true,
+  "singleQuote": false,
+  "ignorePatterns": [
+    "**/routeTree.gen.ts",
+    "**/generated.ts",
+    "services/api/openapi.json",
+    "docs/snippets/**",
+    "docs/plans/**",
+    "services/api/**"
+  ]
+}
