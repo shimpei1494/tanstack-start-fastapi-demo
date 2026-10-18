@@ -6,39 +6,54 @@
 
 ## 方針と前提
 
-利用者の希望は「小規模デモ向けに簡潔・低コスト」「自分・関係者のIPに限定」。既存の2つのDockerイメージを利用し、**ECS Fargateの1サービス・1タスク内にWebとAPIを配置し、PostgreSQLはRDSへ分離する**。
+利用者の希望は「小規模デモ向けに簡潔・低コスト」「自分・関係者のIPに限定」。追加条件は「作成して挙動確認後、30分以内を目標にdestroyする一時環境」。常設時の月額最小化より、一般的なネットワーク分離と削除の再現性を優先する。
 
-想定リージョンは東京 `ap-northeast-1`。リージョン、AWSアカウント、接続を許可するCIDR、ドメインと月額予算は実装前に確定する。可用性より構築の少なさを優先するデモ環境とし、本番案件への転用時はサービス分離・配置・認証を再判断する。
+**Public ALB → private subnetのECS Fargate → isolated subnetのRDS**を第一候補へ変更する。WebとAPIは引き続き同一タスク内の2コンテナとし、ネットワーク分離のためだけに内部ALBやサービス間プロキシを増やさない。ECSにPublic IPは付けない。
+
+想定リージョンは東京 `ap-northeast-1`。リージョン、AWSアカウント、接続を許可するCIDR、HTTPS方式と1回の検証予算は実装前に確定する。ネットワークは2 AZへ分離するが、NAT 1台・Single-AZ DBから始めるため、構成全体の高可用性を保証する計画ではない。
+
+30分は検証の短い利用期間の目標とする。**apply開始からAWSの削除完了までを30分以内に保証することはできない**。特にRDSの削除時間はAWS側の内部処理によって変わる。稼働時間・destroy開始時刻・削除完了時刻を別々に記録する。
 
 ## 構成
 
 ```mermaid
 flowchart TD
-    User[許可IPのブラウザ] -->|HTTPS| ALB[Public ALB / 2 AZ]
-    ALB -->|3000 / private IP| Web
-    subgraph Task[ECS Fargate / 1 task]
-        Web[TanStack Start / 3000] -->|localhost:8000| API[FastAPI / 8000]
+    User[許可IPのブラウザ] -->|HTTPS| ALB
+    subgraph Public[Public subnets / 2 AZ]
+        ALB[Public ALB]
+        NAT[NAT Gateway / まず1台]
     end
-    API -->|TLS / 5432| DB[(Private RDS PostgreSQL)]
-    ECR[ECR / WebとAPIの2 repositories] -. イメージ取得 .-> Task
-    Secret[Secrets Manager] -. APIのDB認証情報 .-> Task
-    Task -. stdout / stderr .-> Logs[CloudWatch Logs]
+    subgraph App[Private app subnets / 2 AZ]
+        subgraph Task[ECS Fargate / WebとAPIの2コンテナ]
+            Web[TanStack Start / 3000] -->|localhost:8000| API[FastAPI / 8000]
+        end
+    end
+    subgraph Data[Isolated DB subnets / 2 AZ]
+        DB[(RDS PostgreSQL / Single-AZ)]
+    end
+    ALB -->|3000| Web
+    API -->|TLS / 5432| DB
+    Task -->|外向きHTTPS| NAT
+    NAT --> Services[ECR / Logs / Secrets Manager等]
+    Task -->|イメージレイヤー取得| S3[S3 Gateway Endpoint]
 ```
 
 | 部品 | 初期案 |
 | --- | --- |
-| Web/API | Fargate、Linux、1タスク、2コンテナを同時に更新 |
+| Web/API | Fargate、Linux、Web/API同居のタスク。通常2タスクを2 AZへ分散して確認、最小構成は1タスク |
 | タスクのサイズ | まず0.5 vCPU / 1 GiBを候補とし、NodeとPythonの同時利用を実測して増量 |
 | アーキテクチャ | まずlinux/amd64に統一。Macでのビルド時もplatformを明示。ARM64は別途互換確認後 |
 | 外部入口 | ALBを1台。外部から到達できるアプリはStartのみ |
 | DB | RDS PostgreSQL 17系、db.t4g.micro候補、Single-AZ、gp3 20 GiBから検証 |
-| ネットワーク | 1 VPC、Public subnet 2つ、DB用private subnet 2つ、Internet Gateway |
-| 外向き通信 | FargateをPublic subnetに配置してPublic IPv4を付与。NAT Gatewayは作らない |
+| ネットワーク | 1 VPC、2 AZ × Public・private app・isolated DBの3層、計6 subnet |
+| 外向き通信 | app subnetからNAT Gateway 1台経由。Fargateはassign_public_ip=false。S3 Gateway Endpointも利用 |
 | 証明書 | ドメインを利用する場合は同リージョンのACM証明書。DNSは既存zoneを優先 |
-| 保存・保護 | RDS暗号化・自動バックアップ7日、削除保護と最終snapshot |
+| 保存・保護 | 一時検証専用: RDS暗号化、backup retention 0、削除保護なし、最終snapshotを作らない。合成データだけを投入 |
 | ログ | Web/APIを分けたCloudWatch Logs、保持14日を初期値候補とする |
 
-ALBやDB subnet groupを2 AZへ配置しても、タスク1つとSingle-AZ DBの構成は高可用性にはならない。デプロイ中は新旧タスクの2つが一時的に動く余裕を持たせる。
+タスク2つを配置する場合も、NAT 1台とSingle-AZ DBは単一障害点として残る。AZ障害への耐性を確認する段階では、AZごとのNATとDBのMulti-AZも別途有効にする。通常2タスク・maximum percent 200なら、更新中は最大4タスク分の余裕を見込む。
+
+今回のNATは一般的なzonal NAT 1台を候補とし、両app subnetの外向き経路に使う。別AZからNATを利用する転送費用を見積もりへ含める。S3 Gateway Endpointをapp route tableへ関連付け、ECRのS3レイヤー取得をNAT経由から外す。ECR API/DKR・Logs・Secrets Manager等は初期はNAT経由とする。外向き経路も閉じたい検証では、必要なInterface Endpoint一式への切り替えを検討する。[S3 Gateway Endpoint](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html)、[ECSとVPC Endpoint](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/vpc-endpoints.html)
 
 同じawsvpcタスクのコンテナはlocalhostで通信できる。AWSも、同じライフサイクルで動かすコンテナを同一タスクへ配置する選択を説明している。[タスクのネットワーク](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-networking-awsvpc.html)、[コンテナの配置判断](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/container-considerations.html)
 
@@ -51,12 +66,13 @@ ALBやDB subnet groupを2 AZへ配置しても、タスク1つとSingle-AZ DBの
 | RDS | Fargate taskおよびmigration taskのSGから5432だけ |
 
 - ALBの接続先はタスクのprivate IP。target groupのtarget_typeは`ip`を使う。
-- taskのPublic IPv4はECR、CloudWatch、Secrets Manager等への外向き通信に使う。Public IPがあることと、外部からアプリへ直接接続できることを分けて設定する。
+- FargateにはPublic IPを付けない。app subnetはデフォルト経路をNATへ向け、Internet Gatewayへ直接向けない。初期化・migration用の単発タスクも同じprivate app subnetに配置する。
+- Public subnetだけがInternet Gatewayへのデフォルト経路を持つ。NATのElastic IPとALBのPublic IPv4を費用へ含める。
 - DB subnetにはInternet Gatewayへのデフォルト経路を置かず、RDSは`publicly_accessible=false`とする。
 - `allowed_cidrs`は必須かつ空を拒否する。初期設定で`0.0.0.0/0`や`::/0`へ開かない。変動する自宅IPはTerraform変数の更新で対応する。
 - ドメイン未確定なら、IP制限したALB DNS名のHTTPで一時的な接続確認はできる。通常の利用URLはHTTPSとし、ドメインまたは既存証明書を実装前に確定する。
 
-このPublic subnet案は今回の費用・簡潔さを優先した選択。private taskへ変更する場合は、NATまたはECR・S3・Logs・Secrets Manager等の到達経路を別途設計し、費用も比較する。[Fargateの外向き通信](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/networking-outbound.html)、[ALBのターゲット](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/alb.html)、[RDSのVPC配置](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.WorkingWithRDSInstanceinaVPC.html)
+旧案の「Public subnetのtask＋NATなし」は常設時の費用節約案として残す。今回の一時環境はprivate taskを既定とし、AWSサービスへの到達経路も確認対象にする。[Fargateの外向き通信](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/networking-outbound.html)、[ALBのターゲット](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/alb.html)、[RDSのVPC配置](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.WorkingWithRDSInstanceinaVPC.html)
 
 ## ECSの単位と更新
 
@@ -93,7 +109,7 @@ execution role、通常task role、DB初期化/migration用roleを分け、管�
 3. VPC、RDS、IAM、ALB、task definition等をTerraformで作成する。サービスのdesired_countは0にする。
 4. DB初期化taskでAPIユーザーとsecretを準備し、migration taskで `alembic upgrade head` を実行する。両方の終了コード0を確認する。
 5. 必要なら `seed-demo` を明示実行する。毎回のデプロイでseedしない。
-6. Terraformでdesired_countを1にし、ALB経由で主要フローを確認する。
+6. Terraformでdesired_countを2（最小検証は1）にし、ALB経由で主要フローを確認する。
 
 通常リリースの順序:
 
@@ -125,50 +141,67 @@ ALBからStartへはチャットのSSEとレポートのSSRをそのまま通す
 ```text
 infra/terraform/
   bootstrap/                  # state用S3、ECR、必要になった時点のOIDC準備
-  environments/demo/
+  environments/sandbox/
     backend.tf                # bootstrapしたS3を指定
     versions.tf               # 検証したTerraform/providerを固定
     main.tf                   # 各moduleの組み立て
     variables.tf
     outputs.tf
-    demo.tfvars.example       # 値は例示。秘密情報を含めない
+    sandbox.tfvars.example       # 値は例示。秘密情報を含めない
   modules/
     network/                  # VPC、subnet、route、SG
     database/                 # RDS、parameter/subnet group、secretメタデータ
     application/              # IAM、ALB、ECS、通常/初期化/migration task、Logs
 ```
 
-- bootstrapとdemoでstateを分ける。state用S3は暗号化、public access block、versioningを有効化する。
+- bootstrapとsandboxでstateを分ける。state用S3は暗号化、public access block、versioningを有効化する。
 - S3 backendの`use_lockfile=true`を採用する。新規構成でDynamoDB lock tableは追加しない。
-- state bucketは環境のdestroyと分けて保持する。権限を限定し、state自体も秘密情報を含み得るものとして扱う。
+- state bucketはsandboxのdestroyと分けて保持する。権限を限定し、state自体も秘密情報を含み得るものとして扱う。
 - image build/push、migration実行、疎通確認をTerraformのlocal-execへ詰め込まず、手順またはdeploy scriptで順に実行する。
-- 主な入力はregion、project/environment、allowed_cidrs、domain/certificate、image digests、migration image digest、desired_count、CPU/memory、DBサイズ、log retention。
+- 主な入力はregion、project/environment、allowed_cidrs、domain/certificate、image digests、migration image digest、desired_count、CPU/memory、DBサイズ、log retention、ephemeralモード。ephemeralによる削除設定はsandbox専用とし、常設環境の既定値を変更しない。
 - 出力はURL、ECR URI、cluster/service名、migration task definition、DB endpoint等。secretの値は出力しない。
 - `.terraform.lock.hcl`はcommitし、state、実値tfvars、planファイルはGitへ入れない。Terraform/providerの版は実装時に確認して固定する。
 
 S3 lockingとversioningはHashiCorp公式の現行仕様を参照する。[S3 backend](https://developer.hashicorp.com/terraform/language/backend/s3)
 
-## 費用と停止
+## 1回の検証費用とdestroy
 
-「コンテナを1タスクにまとめる」「NATを置かない」「Single-AZ DB」「task 1つ」が今回の簡素化。ALBやRDSの固定費は残るため、従量でゼロに近づく構成とは扱わない。
+常設730時間の見積もりから、**1回の作成・稼働・削除まで**の見積もりへ変更する。短時間のためNATを利用する判断はしやすいが、30分が各サービスの時間料金の半額になるとは限らない。
 
 | 費用項目 | 見積もりに含めるもの |
 | --- | --- |
-| Fargate | taskのCPU・メモリと稼働時間。デプロイ中は一時的に2つ |
-| ALB | 稼働時間、LCU、利用するPublic IPv4 |
-| RDS | インスタンス、ストレージ、必要なbackup/snapshot容量 |
-| ネットワーク | taskのPublic IPv4、通信量、AZ間転送等 |
-| 周辺 | ECR、Logs、Secrets Manager、S3 state、必要ならDNS |
+| NAT | 1台の利用時間。1時間未満の端数も1時間分と、処理GB、別AZからの転送を考慮 |
+| ALB | 1時間未満の端数も1時間分のALB料金と、LCU・Public IPv4 |
+| Fargate | 通常2タスク、初期化・migration task、更新中の一時増加、イメージ取得からの時間 |
+| RDS | 作成等の課金状態変更後は最短10分の秒課金。ストレージ、削除完了までの時間も考慮 |
+| 周辺 | ECR、Logs、Secrets Manager、S3 state、必要なDNS、NATのElastic IP等 |
 
-実装前に東京・730時間/月・task 1つ・DB 1台でPricing Calculatorへ入力し、USD/月の内訳と予算を確認する。現時点ではリージョン別の確定見積もりは未作成で、無料枠や為替換算による安さを前提にしない。[Fargate料金](https://aws.amazon.com/fargate/pricing/)、[ALB料金](https://aws.amazon.com/elasticloadbalancing/pricing/)、[RDS料金](https://aws.amazon.com/rds/postgresql/pricing/)、[VPC料金](https://aws.amazon.com/vpc/pricing/)、[Pricing Calculator](https://calculator.aws/)
+東京の現在単価と想定転送量で1回分を算出し、削除遅延・失敗時の余裕を加えた予算を決める。確定金額はまだ算出していない。[NAT料金](https://aws.amazon.com/vpc/pricing/)、[ALB料金](https://aws.amazon.com/elasticloadbalancing/pricing/)、[RDS料金](https://aws.amazon.com/rds/postgresql/pricing/)、[Fargate料金](https://aws.amazon.com/fargate/pricing/)
 
-desired_countを0にしてもALB・DB・保存データ等の課金は残る。長期停止はDBの保管方針とsnapshotを決めて環境を削除する。RDSの一時停止も無期限ではなく、停止可能期間と自動再起動を確認する。[RDSの一時停止](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_StopInstance.html)
+### 一時環境だけの削除設定
+
+- sandboxには合成データのみ投入する。ローカルや常設DBのデータをコピーしない。
+- RDSは`deletion_protection=false`、`skip_final_snapshot=true`、`backup_retention_period=0`、`delete_automated_backups=true`を候補とする。常設環境では削除保護とバックアップを有効にする別設定を持つ。
+- sandbox所有のLogsはdestroyで削除する。アプリ用secretは一時環境でのみ回復待ち期間なしの削除を候補とし、RDS管理secretとの削除順序・再作成時の名前衝突も検証する。
+- 共通のbootstrapにはstate用S3とECRを残せるが、**それらはsandboxのdestroyだけでは消えない**。全消去が必要なら、イメージとversioningされたstateの保存方針を決め、最後にbootstrapを別途削除する。両者の残存費用も記録する。
+- リソースにはproject・environment・run_id・expires_atのタグを付け、削除対象をその実行専用のリソースへ限定する。expires_atは目印であり、タグだけでは自動削除されない。
+
+### 短時間検証の進め方
+
+1. Docker buildとローカルテスト、イメージpush、既存ドメイン/証明書の準備は一時環境を作る前に済ませる。
+2. apply後、初期化とmigrationを実行する。検証はTODOの読み書き、SSEの途中到着・停止、レポートpending、許可IP制限を優先する。
+3. 利用時間の上限で新しい検証を打ち切り、destroyへ進む。デプロイ手順は失敗時にもcleanupへ進む設計にし、CIなら常時実行のcleanup段階とrunner停止時の別の回収経路を用意する。
+4. destroyが完了したか、ECS service/task、ALB/target group、NAT/EIP、RDS、Logs、secretの残存を確認する。state上で消えたこととAWS側の削除完了を照合する。
+5. 削除失敗時はstateを保持し、状態を確認して再実行する。短時間制限に合わせて単にコマンドをtimeoutさせても、AWSリソースは消えない。
+
+RDSは最終snapshotを省いても内部削除処理が残る。**作成開始から削除完了まで30分厳守**が必要なら、実測後に判定し、必要に応じてDBだけ事前作成した検証用RDSを使う構成へ切り替える。その場合は「各回の完全destroy」と異なり、共有DBが残ることを明示する。[RDSの削除](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_DeleteInstance.html)
 
 ## 他の配置案との比較
 
 | 案 | 適する場合 | 今回の判断 |
 | --- | --- | --- |
-| Fargate 1 service / 2 containers + RDS | 小さな一体型アプリを少ない部品で配置 | 第一候補 |
+| private Fargate / 2 containers + RDS | 一時環境でネットワーク分離と挙動を確認 | 第一候補。NAT 1台・通常2タスク |
+| Public Fargate / 2 containers + RDS | 常設環境でNATの固定費を削る | 旧案。今は選択しない |
 | Fargate 2 services + RDS | Web/APIを独立更新・スケール | 必要になった時点でService Connect等を検討 |
 | ECS Express Mode | 自動HTTPSや周辺設定の自動化を優先 | Terraform対応もある候補。今回は入口のIP制限・小さな固定構成・所有するリソースの明示を優先 |
 | EC2 + Compose | 常時費用を別途比較し、OS運用も引き受ける | 選択肢として残すが、今回はサーバー管理を減らすFargateを優先 |
@@ -177,12 +210,12 @@ Express Modeを「Terraform未対応」や「同一タスクを使えない」�
 
 ## 実装の段階と完了条件
 
-1. アカウント・リージョン・許可CIDR・HTTPS方式・予算を確定する。
+1. アカウント・リージョン・許可CIDR・HTTPS方式・1回の予算と、30分を計測する起点を確定する。
 2. DB接続のsecret/TLS対応、health確認、migrationの分離を小さなアプリ変更として実装する。
-3. Terraformのbootstrapとdemoを作り、fmt・validate・planを確認する。
+3. Terraformのbootstrapとsandboxを作り、fmt・validate・planとdestroy planの対象範囲を確認する。
 4. イメージをECRへ保存し、初期化・migration・サービス起動を行う。
-5. 許可IPからTODO CRUD・再起動後の保持・候補・レポートpending・チャットを確認し、許可外からは入口に到達できないことを確認する。
-6. 更新・rollback・secret更新時の新タスク起動・削除とsnapshotを試し、READMEへ記録する。
+5. 許可IPから主要フローを確認し、許可外の入口拒否、taskにPublic IPがないこと、appのNAT経路とDBの分離も確認する。
+6. destroyと残存確認を最初の検証サイクルから行う。更新・rollback・secret更新は別の短時間サイクルに分けて確認し、作成・検証・削除の所要時間をREADMEへ記録する。
 7. 手動手順が固まった後、必要ならGitHub Actionsの手動実行とOIDCを追加する。AWSの長期アクセスキーをGitHubへ保存しない。[GitHub OIDC](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws)
 
 AWSへのapplyと公開は次の実装段階の作業。この計画だけではAWS上の動作、料金、RDSバージョン・インスタンスタイプの選択可能性を検証済みとはしない。
