@@ -13,6 +13,9 @@ dependencies = [
     "uvicorn[standard]==0.54.0",
 ]
 
+[project.optional-dependencies]
+aws = ["boto3==1.43.114"]
+
 [project.scripts]
 seed-demo = "demo_api.seed:main"
 export-openapi = "demo_api.export_openapi:main"

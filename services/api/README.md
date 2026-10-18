@@ -15,6 +15,29 @@ uv run uvicorn demo_api.main:app --host 127.0.0.1 --port 8000 --reload
 
 `seed-demo`は固定IDのサンプル3件を、未投入の場合だけ追加する。APIの起動だけでは投入しない。`GET /health`はDB接続とTODOテーブルを確認し、未接続・未マイグレーションの場合は503を返す。
 
+## AWS向け起動コード（未デプロイ・実機未検証）
+
+`infra/runtime/Dockerfile.api`をリポジトリルートからビルドする想定である。通常のCompose用Dockerfileは従来どおりで、このAWS用イメージは起動時にマイグレーションしない。AWS用イメージだけが`aws` extra（boto3）とRDSの公開CA bundleを含む。
+
+`DATABASE_URL`を設定すると従来どおり優先する。未設定で`DB_HOST`がある場合は`DB_HOST`・`DB_PORT`（既定5432）・`DB_NAME`・`DB_USER`・`DB_PASSWORD`からSQLAlchemy `URL.create`で接続先を作る。パスワード中の記号を手でURLエスケープする必要はない。`DB_SSLMODE=verify-full`・`DB_SSLROOTCERT=/opt/rds/global-bundle.pem`をAWSで指定する。`DB_POOL_SIZE=2`・`DB_MAX_OVERFLOW=1`は1プロセス当たりの上限候補で、RDS接続上限と同時タスク数を実機確認して調整する。SQLiteにはこれらのpool設定を適用しない。
+
+| ECSのcommand | 用途・権限 |
+| --- | --- |
+| `python -m demo_api.aws_runtime init` | 一度に1タスクで実行。RDS管理者でアプリ用LOGINとCRUD権限を初期化。アプリSecretのGet/Putだけをtask roleへ付与 |
+| `python -m demo_api.aws_runtime migrate` | RDS管理者でAlembicを1回実行。サービス更新前に終了コード0を確認 |
+| `python -m demo_api.aws_runtime serve` | アプリ用DBログインでuvicornを1 worker起動。マイグレーションなし |
+| `python -m demo_api.aws_runtime seed` | アプリ用ログインで合成データを明示的に投入 |
+
+init/migrateだけにECS secretsで`RDS_ADMIN_CREDENTIALS`（`username`・`password`のJSON）を注入する。initには`APP_SECRET_ARN`・`AWS_REGION`も必要。TerraformがSecretのメタデータを作り、initが初回の値を作成する。再実行時は既存パスワードを再利用する。Secretのusernameが`DB_USER`と異なる場合や権限エラーは失敗とし、勝手に上書きしない。複数initのパスワード生成をDB advisory lockで直列化する。APIサービスへ管理者資格情報を渡さず、アプリSecretのpasswordだけを`DB_PASSWORD`へ注入する。Secret変更後は新しいサービスタスクへの置換が必要。
+
+initが与えるのはDB接続・public schema使用・現在と今後の管理者所有テーブルのCRUD・sequence使用で、schema CREATEや管理者権限は与えない。既存roleに特権属性や他roleへの所属があれば失敗とし、自動的に特権を変更しない。RDS管理者はPostgreSQLの真のsuperuserではないため、role作成時の非特権defaultを使い、ALTERではLOGINとパスワードだけを変更する。Alembicの管理テーブル`alembic_version`はinitとmigration後にアプリ権限を取り消す。新規のRDS PostgreSQL 17を前提とし、既存DBのPUBLIC権限やあらゆる過去の権限付与を監査・除去する機能ではない。[PostgreSQL ALTER ROLEの権限制約](https://www.postgresql.org/docs/17/sql-alterrole.html)と[RDS管理者roleの仕様](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.PostgreSQL.CommonDBATasks.Roles.rds_superuser.html)を参照。
+
+障害時は資格情報やSQLをログへ出さないため詳細例外を抑止して非0終了する。IAM・環境変数・ネットワークとDB側ログを確認して切り分ける。
+
+`GET /live`はDBへ接続せず応答する、OpenAPI公開対象外のlivenessである。`GET /health`は従来どおりDB readinessを確認する。起動成功だけでDB疎通成功と判断しない。
+
+ローカルテストは接続設定・資格情報の記号・SQLite互換性・Secret再利用と権限SQL（mock）・liveness・通常API契約を確認する。AWS、RDS PostgreSQL、IAM、Secrets Managerへの実接続、CA bundle取得を含むAWS用イメージのビルドは未検証。RDS上のrole/default privileges、TLS hostname検証、Secret初回値作成、失敗時の復旧とマイグレーション順序をデプロイ前に検証し、構成も再検討する必要がある。
+
 ```sh
 uv run pytest
 uv run ruff check .

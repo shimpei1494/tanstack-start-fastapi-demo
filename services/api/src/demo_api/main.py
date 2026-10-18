@@ -51,6 +51,10 @@ def create_app(url: str | None = None) -> FastAPI:
     )
     app.state.engine = engine
 
+    @app.get("/live", include_in_schema=False)
+    def live() -> dict[str, str]:
+        return {"status": "ok"}
+
     @app.get("/health", operation_id="health")
     def health(session: Database) -> dict[str, str]:
         try:
