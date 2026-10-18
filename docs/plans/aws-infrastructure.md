@@ -1,6 +1,6 @@
 # AWSデモ環境とTerraformの構成計画
 
-更新日: 2026-10-18。**計画段階**。Terraformコード、AWSリソース、デプロイ用CIはまだ作成していない。
+更新日: 2026-10-18。**Terraformコードの草案を作成済み・AWS未検証**。[コードと実行手順](../../infra/README.md)を追加した。AWSへのplan・apply・デプロイ・destroy、AWS用イメージのbuildはまだ実施していない。実環境での検証と、その結果に応じた構成の再検討が必要。デプロイ用CIも未作成。
 
 現行アプリの `7cb9f85` までをmainへpush済み。この計画は、その後のローカル変更として管理する。
 
@@ -90,10 +90,10 @@ Web/APIが各1タスクでは、それぞれ単一タスクの停止で影響を
 - Webのサーバー側へ `API_BASE_URL=http://api:8000` を渡す。同じ文字列でもComposeのDNSとは別の仕組みである。ブラウザはALBのWebだけに接続し、API URLを公開しない。内部ALBは追加しない。
 - Service Connectは各タスクへ管理proxyを追加する。AWS推奨の追加256 CPU units・64 MiB以上を考慮し、アプリへタスク全量を割り当てない。初期サイズで足りるか計測して確定する。
 - APIのendpointを先に作り、稼働確認後にWebを起動する。通常のAPI増減は接続先aliasを変えずに行う。新しいendpointを追加・変更した場合は既存Web taskの再配置も必要になる。
-- ECS内の生存確認とDB readinessを分ける。Web用の軽い`/_health`、API用のDB非依存の`/live`を追加候補とし、既存`/health`はDBを含む疎通確認に残す。APIにはALBがないためcontainer health checkを必須にする。
+- ECS内の生存確認とDB readinessを分ける。コード草案ではWebの既存`/`のリダイレクト（200〜399）を生存確認に利用し、APIにDB非依存の`/live`を追加した。既存`/health`はDBを含む疎通確認に残す。APIにはALBがないためcontainer health checkを設定する。
 - 更新はサービスごとのrolling deployment。minimum healthy percent 100 / maximum percent 200、deployment circuit breakerとrollbackを有効にする。Web/API間をコンテナの`dependsOn`では制御しない。
 - APIはリクエスト間でプロセス内の会話状態を共有しない構成を維持する。TODOはRDSに保存し、現在のチャットは必要な履歴をリクエストで渡すためsticky sessionは前提にしない。将来の永続履歴・共有キャッシュは別途設計する。
-- Web/API/proxyのログを区別し、タスク停止、ALB healthy target・5xx、APIのエラー・応答時間、RDS接続数・ストレージを監視する。Container Insights等は追加費用を見て選ぶ。
+- Web/API/proxyのログを区別する。コード草案にはLogsとAuto Scaling用CPUアラームがあるが、タスク停止、ALB healthy target・5xx、APIエラー・応答時間、RDS接続数・ストレージの運用アラーム・通知先は未実装。Container Insights等も追加費用を見て選ぶ。
 
 Service ConnectはAPI側の増減後、新しい接続を複数のタスクへ振り分ける。接続済みのSSEは別タスクへ移動しない。proxyの再接続・再試行もあるため、障害試験では書き込みの重複とstream開始後の再送が起きないか確認し、アプリに安易なPOSTの再試行を追加しない。[Service Connectの構成と制約](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-connect-concepts-deploy.html)、[設定の概要](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-connect-concepts.html)
 
@@ -165,14 +165,14 @@ Service Connectの追加後も、`X-Accel-Buffering: no`ヘッダーだけでAWS
 
 ## Terraformの配置案
 
-次の構成を**実装時に作る**。今は.tfファイルを追加しない。
+次の構成のコード草案を作成した。[手順・未検証事項](../../infra/README.md)を参照。backend無効の静的確認と実環境のplan/applyを区別する。
 
 ```text
 infra/terraform/
   bootstrap/                  # state用S3、ECR、必要になった時点のOIDC準備
   environments/sandbox/
     backend.tf                # bootstrapしたS3を指定
-    versions.tf               # 検証したTerraform/providerを固定
+    versions.tf               # CLI/provider制約とlockで選択版を固定
     main.tf                   # 各moduleの組み立て
     variables.tf
     outputs.tf
@@ -237,15 +237,15 @@ RDSは最終snapshotを省いても内部削除処理が残る。**作成開始�
 
 Express Modeを「Terraform未対応」や「同一タスクを使えない」という理由で除外しない。採用する場合はカスタムtask definitionとIP制限の管理方法を検証し、通常ECSとの二重管理を避ける。[Express Mode](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/express-service-overview.html)、[カスタムtask definitionの指定](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/express-service-getting-started.html)
 
-## 実装の段階と完了条件
+## AWS検証までの段階と完了条件
 
 1. アカウント・リージョン・許可CIDR・HTTPS方式・1回の予算と、30分を計測する起点を確定する。
-2. DB接続のsecret/TLS対応、health確認、migrationの分離を小さなアプリ変更として実装する。
-3. Terraformのbootstrapとsandboxを作り、fmt・validate・planとdestroy planの対象範囲を確認する。
+2. DB接続のsecret/TLS対応、health確認、migrationの分離はコードとローカルテストを追加済み。AWS用イメージのbuildとRDS接続はこれから確認する。
+3. Terraformのbootstrapとsandboxの草案を作成済み。fmt・validateを行い、その後のAWS検証で実値のplanとdestroy planの対象範囲を確認する。
 4. イメージをECRへ保存し、初期化・migration・API・Webの順に起動する。Service Connectの名前解決・HTTP通信・明示timeoutを確認する。
 5. 許可IPから主要フローを確認し、許可外の入口拒否、taskにPublic IPがないこと、appのNAT経路とDBの分離も確認する。
 6. APIだけを1→3→1へ変更し、Webの台数と主要フローが維持されること、DB接続が予算内であることを確認する。
 7. destroyと残存確認を最初の検証サイクルから行う。自動スケール負荷試験・独立更新・rollback・secret更新は別の短時間サイクルに分けて確認し、作成・検証・削除の所要時間をREADMEへ記録する。
 8. 手動手順が固まった後、必要ならGitHub Actionsの手動実行とOIDCを追加する。AWSの長期アクセスキーをGitHubへ保存しない。[GitHub OIDC](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws)
 
-AWSへのapplyと公開は次の実装段階の作業。この計画だけではAWS上の動作、料金、RDSバージョン・インスタンスタイプの選択可能性を検証済みとはしない。
+AWSへのplan・applyと公開は次の検証段階の作業。静的validateやローカルテストをAWS動作確認の代わりにしない。AWS上の動作、実効権限、料金、RDSバージョン・インスタンスタイプの選択可能性は未検証であり、初回検証結果によって構成を見直す。

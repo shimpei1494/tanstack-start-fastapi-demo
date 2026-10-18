@@ -1,0 +1,10 @@
+output "url" { value = module.application.url }
+output "alb_dns_name" { value = module.application.alb_dns_name }
+output "alb_zone_id" { value = module.application.alb_zone_id }
+output "cluster_name" { value = module.application.cluster_name }
+output "service_names" { value = module.application.service_names }
+output "namespace_arn" { value = module.application.namespace_arn }
+output "task_definition_arns" { value = module.application.task_definition_arns }
+output "maintenance_network_configuration" { value = module.application.maintenance_network_configuration }
+output "database_endpoint" { value = "${module.database.host}:${module.database.port}" }
+output "region" { value = var.region }

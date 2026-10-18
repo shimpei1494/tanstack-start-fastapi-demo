@@ -12,3 +12,11 @@
 **/*.db
 playwright-report
 test-results
+
+**/.terraform
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+**/*.tfvars
+**/*.tfvars.json
+**/backend.hcl

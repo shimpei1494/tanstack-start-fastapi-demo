@@ -1,0 +1,7 @@
+# Copy these settings to the sandbox backend configuration after bootstrap.
+# This is an example file, not an active backend for the bootstrap root.
+bucket       = "replace-me-workroom-demo-state-unique"
+key          = "sandbox/terraform.tfstate"
+region       = "ap-northeast-1"
+encrypt      = true
+use_lockfile = true

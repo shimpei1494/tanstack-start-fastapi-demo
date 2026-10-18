@@ -13,3 +13,14 @@ __pycache__/
 playwright-report/
 test-results/
 .DS_Store
+
+# Terraform state, provider cache, saved plans and real configuration.
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+backend.hcl
+crash.log
+crash.*.log

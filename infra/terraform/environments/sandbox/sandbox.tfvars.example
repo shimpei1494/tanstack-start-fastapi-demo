@@ -1,0 +1,28 @@
+# Illustrative values only. Replace account/IP/name/time/image digests before use.
+name               = "workroom-sbx-01"
+region             = "ap-northeast-1"
+allowed_account_id = "123456789012"
+availability_zones = ["ap-northeast-1a", "ap-northeast-1c"]
+allowed_cidrs      = ["203.0.113.10/32"]
+run_id             = "20261018-01"
+expires_at         = "2026-10-18T12:30:00Z" # Tag only; no automatic destroy.
+
+# Preferred: existing validated ACM certificate + its hostname.
+certificate_arn = "arn:aws:acm:ap-northeast-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+public_hostname = "demo.example.com"
+# For a short synthetic-data HTTP check instead:
+# certificate_arn = null
+# public_hostname = null
+# allow_temporary_http = true
+
+images = {
+  web = "123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/workroom/web@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  api = "123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/workroom/api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  # Separate migration digest when releasing a schema change before the API.
+  # migration = "123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/workroom/api@sha256:..."
+}
+
+enable_api_service  = false # Step 1: init + migration, then true and wait for API.
+enable_web_service  = false # Step 2: true only after API is healthy.
+enable_auto_scaling = false # Step 3: enable independent CPU target tracking.
+ephemeral          = true  # Deletes DB without backup/final snapshot.

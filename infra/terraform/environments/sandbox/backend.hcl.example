@@ -1,0 +1,4 @@
+bucket       = "REPLACE-WITH-BOOTSTRAP-STATE-BUCKET"
+key          = "sandbox/workroom-sbx-01/terraform.tfstate"
+region       = "ap-northeast-1"
+# Bootstrap separately; do not put AWS access keys in backend configuration.

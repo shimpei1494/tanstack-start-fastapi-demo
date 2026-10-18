@@ -113,7 +113,7 @@ npm run generate:api
 ## 計画・比較・紹介資料
 
 - [全体計画](docs/plans/README.md) / [実装計画と進捗](docs/plans/implementation.md) / [ストリーミング契約](docs/plans/streaming-contract.md)
-- [AWSデモ環境とTerraformの計画](docs/plans/aws-infrastructure.md)（計画段階・未構築）
+- [AWSデモ環境とTerraformの計画](docs/plans/aws-infrastructure.md) / [コード草案・手順・未検証事項](infra/README.md)（AWS未構築・実環境検証と構成の再検討が必要）
 - [Next.js対応例と読み方](docs/comparison.md) / [説明用コード](docs/snippets/README.md)
 - [紹介HTML](docs/guide.html)（ローカルで開く。外部依存なし） / [実装・検証メモ](docs/implementation-notes.md)
 
