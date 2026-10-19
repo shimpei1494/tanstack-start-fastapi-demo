@@ -33,9 +33,9 @@
 取得を管理する中心は、次の短い組み合わせです。表示のマークアップ、URL切り替え、エラーの再試行UIは実装ファイルにあります。
 
 ```tsx
-// route loader: 完了を待たずに取得を開始。prefetchQueryは失敗をthrowしない。
+// route loader: 完了を待たずに取得を開始。失敗は.catch(noop)で握りつぶし、画面側で表示する。
 loader: ({ context, deps }) => {
-  void context.queryClient.prefetchQuery(reportOptions(deps.scenario));
+  void context.queryClient.query(reportOptions(deps.scenario)).catch(noop);
 };
 
 // 初回はこの領域だけ待機表示

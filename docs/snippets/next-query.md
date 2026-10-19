@@ -53,7 +53,7 @@ import { Todos } from './todos'
 export default async function Page({ searchParams }) {
   const filter = filterSchema.catch('all').parse((await searchParams).filter)
   const client = new QueryClient({ defaultOptions: { queries: { retry: 1 } } }) // リクエストごとに分ける
-  await client.fetchQuery({
+  await client.query({
     queryKey: ['todos', filter],
     queryFn: () => readTodos(filter),
     staleTime: 30_000,

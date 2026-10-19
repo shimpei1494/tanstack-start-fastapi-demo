@@ -1,3 +1,4 @@
+import { noop } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { reportScenarioSchema } from "@demo/api-contract";
 import { reportOptions } from "../queries/reports";
@@ -9,8 +10,8 @@ export const Route = createFileRoute("/reports")({
   }),
   loaderDeps: ({ search }) => ({ scenario: search.scenario }),
   loader: ({ context, deps }) => {
-    // prefetchQuery absorbs rejection. Do not await: the page shell can render now.
-    void context.queryClient.prefetchQuery(reportOptions(deps.scenario));
+    // Swallow rejection here; the page reads the error. Do not await: the page shell can render now.
+    void context.queryClient.query(reportOptions(deps.scenario)).catch(noop);
   },
   component: ReportPage,
 });

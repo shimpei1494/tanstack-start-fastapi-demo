@@ -7,7 +7,8 @@ export const Route = createFileRoute("/todos")({
     filter: filterSchema.catch("all").parse(search.filter),
   }),
   loaderDeps: ({ search }) => ({ filter: search.filter }),
-  loader: ({ context, deps }) => context.queryClient.ensureQueryData(todoOptions(deps.filter)),
+  loader: ({ context, deps }) =>
+    context.queryClient.query({ ...todoOptions(deps.filter), staleTime: "static" }),
   pendingComponent: () => (
     <main className="mx-auto max-w-6xl p-8">
       <output>TODOを読み込み中…</output>
