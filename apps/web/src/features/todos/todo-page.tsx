@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { Link, useHydrated } from "@tanstack/react-router";
+import { Link, useHydrated, useRouterState } from "@tanstack/react-router";
 import {
   Plus,
   Sparkles,
@@ -23,6 +23,9 @@ export function TodoPage() {
   const hydrated = useHydrated();
   const { filter } = Route.useSearch();
   const { data: todos } = useSuspenseQuery(todoOptions(filter));
+  const switchingFilter = useRouterState({
+    select: (s) => s.isLoading && s.location.pathname === "/todos",
+  });
   const queryClient = useQueryClient();
   const refresh = async () => {
     await Promise.all([
@@ -130,13 +133,17 @@ export function TodoPage() {
                 key={value}
                 to="/todos"
                 search={{ filter: value }}
+                resetScroll={false}
                 className={`border-b-2 px-4 pb-3 pt-1 text-sm ${filter === value ? "border-teal-700 font-medium text-teal-800" : "border-transparent text-stone-400 hover:text-stone-700"}`}
               >
                 {label}
               </Link>
             ))}
           </div>
-          <ul className="divide-y divide-stone-100 px-5">
+          <ul
+            className={`divide-y divide-stone-100 px-5 transition-opacity ${switchingFilter ? "opacity-50" : ""}`}
+            aria-busy={switchingFilter}
+          >
             {todos.map((todo) => (
               <TodoRow key={todo.id} todo={todo} refresh={refresh} />
             ))}

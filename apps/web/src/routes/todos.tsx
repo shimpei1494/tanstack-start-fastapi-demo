@@ -9,6 +9,8 @@ export const Route = createFileRoute("/todos")({
   loaderDeps: ({ search }) => ({ filter: search.filter }),
   loader: ({ context, deps }) =>
     context.queryClient.query({ ...todoOptions(deps.filter), staleTime: "static" }),
+  // フィルタ切り替え時は前の一覧を残して薄く表示するため、ローディング画面への切り替えを遅らせる
+  pendingMs: 3000,
   pendingComponent: () => (
     <main className="mx-auto max-w-6xl p-8">
       <output>TODOを読み込み中…</output>
